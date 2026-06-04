@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050914" />
+    <meta name="description" content="Hardware Conflict Analyzer Pro: Detect system hardware from screenshots, analyze performance scores, check game compatibility, and get upgrade recommendations with OCR and AI-powered analysis." />
+    <meta property="og:title" content="Hardware Conflict Analyzer Pro" />
+    <meta property="og:description" content="Advanced hardware detection and performance analysis tool with OCR, game compatibility checker, and upgrade recommendations." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Hardware Conflict Analyzer Pro" />
+    <meta name="twitter:description" content="Analyze your PC hardware and get performance insights." />
+    <title>Hardware Conflict Analyzer Pro</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <canvas id="particleCanvas" class="particle-canvas" aria-hidden="true"></canvas>
+    <div class="aurora aurora-a" aria-hidden="true"></div>
+    <div class="aurora aurora-b" aria-hidden="true"></div>
+    <div class="aurora aurora-c" aria-hidden="true"></div>
+
+    <div id="startupOverlay" class="startup-overlay">
+      <div class="startup-core">
+        <div class="startup-orbit"></div>
+        <div class="startup-mark">HCA</div>
+      </div>
+      <div class="startup-copy">
+        <span>Hardware Conflict Analyzer Pro</span>
+        <small>Calibrating detection matrix</small>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar glass-panel">
+        <a class="brand" href="#top" aria-label="Hardware Conflict Analyzer Pro">
+          <span class="brand-mark">H</span>
+          <span>
+            <strong>HCA Pro</strong>
+            <small>Analyzer Suite</small>
+          </span>
+        </a>
+        <nav class="nav-list" aria-label="Primary navigation">
+          <a href="#scanner" class="nav-link active"><i data-lucide="scan-line"></i><span>Scanner</span></a>
+          <a href="#scores" class="nav-link"><i data-lucide="gauge"></i><span>Scores</span></a>
+          <a href="#games" class="nav-link"><i data-lucide="gamepad-2"></i><span>Games</span></a>
+          <a href="#upgrades" class="nav-link"><i data-lucide="arrow-up-right"></i><span>Upgrades</span></a>
+          <a href="#compare" class="nav-link"><i data-lucide="git-compare"></i><span>Compare</span></a>
+        </nav>
+        <div class="sidebar-status">
+          <span class="status-dot"></span>
+          <span>Parser confidence guard active</span>
+        </div>
+      </aside>
+
+      <main id="top" class="main-content">
+        <header class="topbar glass-panel">
+          <div>
+            <p class="eyebrow">Premium hardware intelligence</p>
+            <h1>Hardware Conflict Analyzer Pro</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="sampleButton" class="icon-button" type="button" title="Load calibrated sample">
+              <i data-lucide="sparkles"></i>
+            </button>
+            <button id="reportButton" class="button primary" type="button">
+              <i data-lucide="file-down"></i>
+              <span>PDF Report</span>
+            </button>
+          </div>
+        </header>
+
+        <section id="scanner" class="dashboard-grid">
+          <article class="scanner-panel glass-panel float-card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">OCR hardware detection</p>
+                <h2>System Intake</h2>
+              </div>
+              <label class="toggle">
+                <input id="debugToggle" type="checkbox" />
+                <span>Debug</span>
+              </label>
+            </div>
+
+            <div id="dropZone" class="drop-zone">
+              <input id="fileInput" type="file" accept="image/*" />
+              <div id="scanFrame" class="scan-frame">
+                <img id="previewImage" alt="Screenshot preview of system information" />
+                <div class="scan-beam"></div>
+                <div class="drop-empty">
+                  <i data-lucide="image-up"></i>
+                  <span>Screenshot Intake</span>
+                  <small>PNG, JPG, WebP</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="ocrButton" class="button secondary" type="button" disabled>
+                <i data-lucide="scan-text"></i>
+                <span>Run OCR</span>
+              </button>
+              <button id="analyzeButton" class="button primary" type="button" disabled>
+                <i data-lucide="cpu"></i>
+                <span>Analyze</span>
+              </button>
+            </div>
+
+            <div id="errorArea" class="error-area" hidden></div>
+
+            <div class="progress-shell">
+              <div id="ocrProgress" class="progress-fill"></div>
+            </div>
+            <p class="scanner-tip">For best results, use an About PC screenshot or paste the raw system details below.</p>
+            <textarea id="inputText" class="ocr-text" spellcheck="false" placeholder="Paste your system text or let OCR extract it from an image..."></textarea>
+            <div id="debugOutput" class="debug-output" hidden></div>
+          </article>
+
+          <article class="system-panel glass-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Detection output</p>
+                <h2>System Snapshot</h2>
+              </div>
+              <div class="confidence-pill">
+                <span id="confidenceValue">0%</span>
+                <small>confidence</small>
+              </div>
+            </div>
+            <div id="snapshotGrid" class="snapshot-grid"></div>
+            <div class="confidence-meter">
+              <span id="confidenceMeter"></span>
+            </div>
+          </article>
+        </section>
+
+        <section id="scores" class="content-section glass-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Performance scoring</p>
+              <h2>Score Matrix</h2>
+            </div>
+            <div class="score-legend">
+              <span>0</span>
+              <span>100</span>
+            </div>
+          </div>
+          <div id="scoreGrid" class="score-grid"></div>
+          <div class="radar-wrap">
+            <canvas id="radarCanvas" width="720" height="320" aria-label="Hardware radial chart"></canvas>
+            <div id="scoreNarrative" class="score-narrative"></div>
+          </div>
+        </section>
+
+        <section id="games" class="content-section glass-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">50+ title compatibility</p>
+              <h2>Game Compatibility</h2>
+            </div>
+            <div class="search-box">
+              <i data-lucide="search"></i>
+              <input id="gameSearch" type="search" placeholder="Search games" aria-label="Search games by name or genre" />
+            </div>
+          </div>
+          <div id="compatSummary" class="compat-summary"></div>
+          <div id="gameList" class="game-list"></div>
+        </section>
+
+        <section id="upgrades" class="split-section">
+          <article class="glass-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Bottleneck analysis</p>
+                <h2>Upgrade Advisor</h2>
+              </div>
+            </div>
+            <div id="upgradeList" class="upgrade-list"></div>
+          </article>
+
+          <article class="glass-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Plain-language engine</p>
+                <h2>AI Explanation</h2>
+              </div>
+            </div>
+            <div class="question-grid">
+              <button class="question-chip" data-question="Why is my laptop slow?">Why is my laptop slow?</button>
+              <button class="question-chip" data-question="Why is my game lagging?">Why is my game lagging?</button>
+              <button class="question-chip" data-question="Why is my SSD faster?">Why is my SSD faster?</button>
+              <button class="question-chip" data-question="What should I upgrade first?">What should I upgrade first?</button>
+            </div>
+            <div id="aiResponse" class="ai-response"></div>
+          </article>
+        </section>
+
+        <section id="compare" class="content-section glass-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">PC comparison tool</p>
+              <h2>Head-to-Head Analyzer</h2>
+            </div>
+            <button id="compareButton" class="button secondary" type="button">
+              <i data-lucide="git-compare"></i>
+              <span>Compare</span>
+            </button>
+          </div>
+          <div class="compare-grid">
+            <div>
+              <label for="compareA" class="compare-label">PC A Configuration</label>
+              <textarea id="compareA" class="compare-box" spellcheck="false"></textarea>
+            </div>
+            <div>
+              <label for="compareB" class="compare-label">PC B Configuration</label>
+              <textarea id="compareB" class="compare-box" spellcheck="false"></textarea>
+            </div>
+          </div>
+          <div id="compareResults" class="compare-results"></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
