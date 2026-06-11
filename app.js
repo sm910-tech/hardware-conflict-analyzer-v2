@@ -151,6 +151,26 @@ function updateAnalyzeButtonState() {
   dom.analyzeButton.disabled = text.length === 0;
 }
 
+// LocalStorage Telemetry Tracker Engine
+function getSearchCounts() {
+  try {
+    return JSON.parse(localStorage.getItem("hca_game_searches")) || {};
+  } catch {
+    return {};
+  }
+}
+
+function incrementSearchCount(gameName) {
+  if (!gameName) return;
+  try {
+    const counts = getSearchCounts();
+    counts[gameName] = (counts[gameName] || 0) + 1;
+    localStorage.setItem("hca_game_searches", JSON.stringify(counts));
+  } catch (error) {
+    console.error("Failed to write search telemetry database profile:", error);
+  }
+}
+
 const sampleText = `Processor Intel i3-6006U
 Graphics Intel HD Graphics 520
 Memory 8GB DDR3 RAM
@@ -195,6 +215,7 @@ function queryDom() {
     "radarCanvas",
     "scoreNarrative",
     "compatSummary",
+    "popularGames", // Feature added to map container tracking targets
     "gameSearch",
     "gameList",
     "upgradeList",
@@ -253,8 +274,6 @@ function safeObject(value, fallback = {}) {
   return value && typeof value === "object" ? value : fallback;
 }
 
-
-
 function showFileError(message) {
   dom.debugOutput.hidden = false;
   dom.debugOutput.textContent = message;
@@ -296,6 +315,7 @@ function renderSkeletons() {
   dom.scoreGrid.innerHTML = Array.from({ length: 7 }, () => `<div class="skeleton"></div>`).join("");
   dom.gameList.innerHTML = Array.from({ length: 8 }, () => `<div class="skeleton"></div>`).join("");
   dom.upgradeList.innerHTML = Array.from({ length: 3 }, () => `<div class="skeleton"></div>`).join("");
+  if (dom.popularGames) dom.popularGames.innerHTML = `<div class="skeleton"></div>`;
 }
 
 function renderAll() {
@@ -483,8 +503,47 @@ function renderGames() {
     </div>
   `).join("");
 
+  // Populate dynamic Most Searched / Popular Titles layout via Telemetry Metrics
+  if (dom.popularGames) {
+    if (query.length > 0) {
+      dom.popularGames.innerHTML = "";
+      dom.popularGames.style.display = "none";
+    } else {
+      dom.popularGames.style.display = "grid";
+      const counts = getSearchCounts();
+      
+      const sortedByPopularity = [...games].sort((a, b) => {
+        const countA = counts[a.name] || 0;
+        const countB = counts[b.name] || 0;
+        if (countB !== countA) return countB - countA;
+        return a.name.localeCompare(b.name);
+      });
+
+      const popularTitles = sortedByPopularity.slice(0, 5); // Grab top 5 search counts
+
+      dom.popularGames.innerHTML = `
+        <div style="grid-column: 1 / -1; margin-bottom: 0.5rem;">
+          <p class="eyebrow">Telemetry Metrics Tracking</p>
+          <h3>Most Searched Games</h3>
+        </div>
+        ${popularTitles.map((game) => `
+          <div class="popular-showcase-card status-${game.status?.toLowerCase().replace(/\s+/g, "-")}" 
+               data-game-name="${escapeHtml(game.name)}"
+               style="padding: 1.25rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+            <div>
+              <h4 style="margin:0 0 0.25rem 0; font-size:1rem; color:#fff;">${escapeHtml(game.name)}</h4>
+              <small style="opacity:0.6; font-size:0.8rem;">Est: ${Number(game.estimatedFps) || 0} FPS</small>
+            </div>
+            <span class="status-badge ${statusClass(game.status || "Unknown")}" style="font-size:0.75rem;">${escapeHtml(game.status)}</span>
+          </div>
+        `).join("")}
+      `;
+    }
+  }
+
+  // Render main filter listings safely containing escaped dataset targets
   dom.gameList.innerHTML = filtered.map((game, index) => `
-    <article class="game-card" style="animation-delay:${Math.min(index * 18, 240)}ms">
+    <article class="game-card" data-game-name="${escapeHtml(game.name)}" style="animation-delay:${Math.min(index * 18, 240)}ms; cursor: pointer;">
       <div class="game-card-head">
         <div>
           <h3>${escapeHtml(game.name || "Unknown")}</h3>
@@ -502,6 +561,51 @@ function renderGames() {
       <p class="bottleneck-line">${escapeHtml(game.upgrade || "No upgrade guidance available.")}</p>
     </article>
   `).join("");
+
+  renderSearchSuggestions(query, games);
+}
+
+// Search Suggestions Dropdown Component
+function renderSearchSuggestions(query, totalGames) {
+  let suggestionsBox = document.getElementById("gameSearchSuggestions");
+  
+  if (!query) {
+    if (suggestionsBox) suggestionsBox.remove();
+    return;
+  }
+
+  const matches = totalGames
+    .filter(g => g.name.toLowerCase().includes(query) && g.name.toLowerCase() !== query)
+    .slice(0, 5);
+
+  if (matches.length === 0) {
+    if (suggestionsBox) suggestionsBox.remove();
+    return;
+  }
+
+  if (!suggestionsBox) {
+    suggestionsBox = document.createElement("div");
+    suggestionsBox.id = "gameSearchSuggestions";
+    suggestionsBox.style.cssText = "position: absolute; width: 100%; max-height: 220px; background: #0c1224; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; top: 100%; left: 0; z-index: 99; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 0.25rem;";
+    dom.gameSearch.parentElement.style.position = "relative";
+    dom.gameSearch.parentElement.appendChild(suggestionsBox);
+  }
+
+  suggestionsBox.innerHTML = matches.map(game => `
+    <div class="suggestion-item" data-game-name="${escapeHtml(game.name)}" style="padding: 0.6rem 1rem; color: #cbd5e1; cursor: pointer; border-radius: 4px; font-size: 0.9rem; transition: background 0.15s;" onmouseenter="this.style.background='rgba(255,255,255,0.05)'" onmouseleave="this.style.background='transparent'">
+      ${escapeHtml(game.name)} <span style="opacity:0.4; font-size:0.75rem; float:right;">${escapeHtml(game.genre)}</span>
+    </div>
+  `).join("");
+
+  Array.from(suggestionsBox.children).forEach((el) => {
+    el.addEventListener("click", () => {
+      const selectedName = el.dataset.gameName;
+      incrementSearchCount(selectedName);
+      dom.gameSearch.value = selectedName;
+      suggestionsBox.remove();
+      renderGames();
+    });
+  });
 }
 
 function renderUpgrades() {
@@ -540,9 +644,12 @@ function renderComparison() {
   const leftValue = dom.compareA?.value.trim() || "";
   const rightValue = dom.compareB?.value.trim() || "";
   
+  // Bugfix: Prevent cross-view error overwrites by writing structural feedback into the result container contextually
   if (!leftValue || !rightValue) {
-    showError("Please enter hardware information in both comparison boxes.");
-    dom.compareResults.innerHTML = "";
+    dom.compareResults.innerHTML = `
+      <div style="padding: 1.25rem; text-align: center; color: var(--amber, #ffb300); background: rgba(255,179,0,0.05); border: 1px dashed rgba(255,179,0,0.2); border-radius: 6px;">
+        Please enter hardware information in both comparison boxes above.
+      </div>`;
     return;
   }
   
@@ -591,7 +698,6 @@ async function analyzeCurrentText() {
 async function handleOcr() {
   if (!state.file) return;
   
-  // Validate file size before OCR
   const validation = validateImageFile(state.file);
   if (!validation.valid) {
     showError(validation.error);
@@ -599,7 +705,6 @@ async function handleOcr() {
   }
   clearError();
   
-  // Resize image if needed to prevent OCR slowdown
   const processedFile = await resizeImageIfNeeded(state.file);
   
   dom.ocrButton.disabled = true;
@@ -679,7 +784,6 @@ function handleFile(file) {
 
 function handleReport() {
   try {
-    // Validate state before generating PDF
     if (!state.hardware || !state.scoring) {
       showError("Please analyze hardware information first before generating a report.");
       return;
@@ -712,7 +816,6 @@ function bindEvents() {
   dom.ocrButton.addEventListener("click", handleOcr);
   dom.analyzeButton.addEventListener("click", analyzeCurrentText);
   
-  // Update button state when text input changes
   dom.inputText.addEventListener("input", updateAnalyzeButtonState);
   
   dom.sampleButton.addEventListener("click", async () => {
@@ -722,8 +825,39 @@ function bindEvents() {
   });
   dom.reportButton.addEventListener("click", handleReport);
   
-  // Debounce game search to prevent lag
   dom.gameSearch.addEventListener("input", debounce(renderGames, 200));
+
+  // Safe Event Delegation to completely prevent quote/parsing breakage
+  if (dom.popularGames) {
+    dom.popularGames.addEventListener("click", (e) => {
+      const card = e.target.closest(".popular-showcase-card");
+      if (card) {
+        const selectedGameName = card.dataset.gameName;
+        incrementSearchCount(selectedGameName);
+        dom.gameSearch.value = selectedGameName;
+        renderGames();
+      }
+    });
+  }
+
+  if (dom.gameList) {
+    dom.gameList.addEventListener("click", (e) => {
+      const card = e.target.closest(".game-card");
+      if (card) {
+        const selectedGameName = card.dataset.gameName;
+        incrementSearchCount(selectedGameName);
+        renderGames(); // Updates trending weights on card clicks
+      }
+    });
+  }
+
+  // Clear focus overlay structures on document pointer dismissals
+  document.addEventListener("click", (e) => {
+    const sug = document.getElementById("gameSearchSuggestions");
+    if (sug && e.target !== dom.gameSearch) {
+      sug.remove();
+    }
+  });
   
   dom.compareButton.addEventListener("click", renderComparison);
   document.querySelectorAll(".question-chip").forEach((button) => {
@@ -741,7 +875,10 @@ function initParticles() {
   const canvas = dom.particleCanvas;
   const ctx = canvas.getContext("2d");
   const particles = [];
-  const total = Math.min(110, Math.max(48, Math.floor(window.innerWidth / 16)));
+  
+  // Optimization: Caps loop overhead down from 110 to 60 elements max.
+  // Optimizes frame pacing on low-power architectures (e.g. legacy Core i3 laptops)
+  const total = Math.min(60, Math.max(32, Math.floor(window.innerWidth / 32)));
 
   function resize() {
     const ratio = window.devicePixelRatio || 1;
@@ -812,7 +949,6 @@ function init() {
   try {
     queryDom();
     
-    // Validate CDN dependencies at startup (delayed to allow script loading)
     window.setTimeout(() => {
       if (!validateCdnDependencies()) {
         console.warn("Some CDN features may be unavailable");
@@ -823,18 +959,15 @@ function init() {
     dom.compareA.value = sampleText;
     dom.compareB.value = comparisonText;
     
-    // Initialize button states from sample text
     updateAnalyzeButtonState();
     dom.reportButton.disabled = true;
     
-    // Compute initial sample state before rendering
     computeState(sampleText);
     dom.reportButton.disabled = true;
     renderAll();
     bindEvents();
     initParticles();
     
-    // Hide overlay after UI is ready
     window.setTimeout(() => {
       if (dom.startupOverlay) {
         dom.startupOverlay.classList.add("is-hidden");
@@ -848,7 +981,6 @@ function init() {
   }
 }
 
-// Cleanup object URLs on page unload
 window.addEventListener("beforeunload", () => {
   if (state.fileUrl) {
     URL.revokeObjectURL(state.fileUrl);
