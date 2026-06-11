@@ -1,29 +1,47 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <script type="text/javascript">
-    (function(c,l,a,r,i,t,y){
-        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-    })(window, document, "clarity", "script", "x1thfcqb55");
-</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#050914" />
+    
+    <meta name="color-scheme" content="dark" />
+    
     <meta name="description" content="Hardware Conflict Analyzer Pro: Detect system hardware from screenshots, analyze performance scores, check game compatibility, and get upgrade recommendations with OCR and AI-powered analysis." />
+    <meta name="keywords" content="hardware analyzer, pc bottleneck calculator, cpu comparison, gpu comparison, game compatibility checker, hardware conflict analyzer" />
+    <meta name="author" content="SM910 Tech" />
+    <link rel="canonical" href="https://sm910-tech.github.io/hardware-conflict-analyzer/" />
+    <link rel="icon" href="./favicon.ico" />
+    
+    <link rel="manifest" href="./manifest.json" />
+
     <meta property="og:title" content="Hardware Conflict Analyzer Pro" />
     <meta property="og:description" content="Advanced hardware detection and performance analysis tool with OCR, game compatibility checker, and upgrade recommendations." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://sm910-tech.github.io/hardware-conflict-analyzer/preview.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Hardware Conflict Analyzer Pro" />
     <meta name="twitter:description" content="Analyze your PC hardware and get performance insights." />
     <title>Hardware Conflict Analyzer Pro</title>
+    
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    
     <link rel="stylesheet" href="./styles.css" />
     <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script type="module" src="./app.js"></script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Hardware Conflict Analyzer Pro",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Any"
+    }
+    </script>
   </head>
   <body>
     <canvas id="particleCanvas" class="particle-canvas" aria-hidden="true"></canvas>
@@ -55,8 +73,9 @@
           <a href="#scanner" class="nav-link active"><i data-lucide="scan-line"></i><span>Scanner</span></a>
           <a href="#scores" class="nav-link"><i data-lucide="gauge"></i><span>Scores</span></a>
           <a href="#games" class="nav-link"><i data-lucide="gamepad-2"></i><span>Games</span></a>
+          <a href="#games" class="nav-link"><i data-lucide="flame"></i><span>Popular Games</span></a>
           <a href="#upgrades" class="nav-link"><i data-lucide="arrow-up-right"></i><span>Upgrades</span></a>
-          <a href="#compare" class="nav-link"><i data-lucide="git-compare"></i><span>Compare</span></a>
+          <a href="#compare" class="nav-link"><i data-lucide="git-compare"></i><span>Compare Hardware</span></a>
         </nav>
         <div class="sidebar-status">
           <span class="status-dot"></span>
@@ -64,7 +83,7 @@
         </div>
       </aside>
 
-      <main id="top" class="main-content">
+      <main id="top" class="main-content" role="main">
         <header class="topbar glass-panel">
           <div>
             <p class="eyebrow">Premium hardware intelligence</p>
@@ -95,9 +114,9 @@
             </div>
 
             <div id="dropZone" class="drop-zone">
-              <input id="fileInput" type="file" accept="image/*" />
+              <input id="fileInput" type="file" accept="image/*" aria-label="Upload Screenshot" />
               <div id="scanFrame" class="scan-frame">
-                <img id="previewImage" alt="Screenshot preview of system information" />
+                <img id="previewImage" alt="Screenshot preview of system information" loading="lazy" />
                 <div class="scan-beam"></div>
                 <div class="drop-empty">
                   <i data-lucide="image-up"></i>
@@ -172,10 +191,12 @@
             </div>
             <div class="search-box">
               <i data-lucide="search"></i>
-              <input id="gameSearch" type="search" placeholder="Search games" aria-label="Search games by name or genre" />
+              <input id="gameSearch" type="search" placeholder="Search games" aria-label="Search games by name or genre" autocomplete="off" />
             </div>
           </div>
+          
           <div id="compatSummary" class="compat-summary"></div>
+          <div id="popularGames" class="popular-games"></div>
           <div id="gameList" class="game-list"></div>
         </section>
 
@@ -230,7 +251,38 @@
           </div>
           <div id="compareResults" class="compare-results"></div>
         </section>
+
+        <footer class="site-footer" style="text-align: center; padding: 3rem 0 2rem; opacity: 0.8; display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 3rem;">
+          <small style="letter-spacing: 0.05em;">Hardware Conflict Analyzer Pro v1.0</small>
+          <div class="footer-links" style="display: flex; justify-content: center; gap: 1.5rem; font-size: 0.85rem;">
+            <a href="./sitemap.xml" style="color: var(--primary, #007bff); text-decoration: none; opacity: 0.75; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.75">Sitemap</a>
+            <a href="./robots.txt" style="color: var(--primary, #007bff); text-decoration: none; opacity: 0.75; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.75">Robots</a>
+          </div>
+        </footer>
       </main>
     </div>
+
+    <a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top" style="position: fixed; bottom: 24px; right: 24px; background: rgba(13, 20, 38, 0.85); color: #fff; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); width: 44px; height: 44px; display: none; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; z-index: 1000; box-shadow: 0 8px 32px rgba(0,0,0,0.4); transition: transform 0.2s, background 0.2s;">
+      <i data-lucide="arrow-up" style="width: 20px; height: 20px;"></i>
+    </a>
+
+    <script>
+      history.scrollRestoration = "manual";
+      
+      // Smart Back to Top Visibility Control
+      window.addEventListener('scroll', () => {
+        const btn = document.getElementById('backToTop');
+        if (window.scrollY > 400) {
+          btn.style.display = 'flex';
+        } else {
+          btn.style.display = 'none';
+        }
+      });
+
+      // Simple click hover effects for the back-to-top bubble
+      const topBtn = document.getElementById('backToTop');
+      topBtn.addEventListener('mouseenter', () => topBtn.style.transform = 'translateY(-2px)');
+      topBtn.addEventListener('mouseleave', () => topBtn.style.transform = 'translateY(0)');
+    </script>
   </body>
 </html>
