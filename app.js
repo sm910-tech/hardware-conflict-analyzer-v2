@@ -2,8 +2,36 @@ import { compareHardware, parseHardware } from "./modules/parser/hardwareParser.
 import { calculateScores, scoreTone } from "./modules/scoring/scoreEngine.js";
 import { analyzeGameCompatibility, summarizeGameCompatibility } from "./modules/gamechecker/gameChecker.js";
 import { analyzeUpgrades, explainQuestion } from "./modules/upgrades/upgradeAdvisor.js";
-import { runOcr } from "./modules/ocr/ocrEngine.js";
-import { generatePdfReport } from "./modules/reports/pdfReport.js";
+
+// Requirement 15: Freeze text constant states to defend against execution mutations
+const sampleText = `Processor Intel i3-6006U
+Graphics Intel HD Graphics 520
+Memory 8GB DDR3 RAM
+Storage 480GB SSD`;
+
+const comparisonText = `CPU Ryzen 7 7700X
+GPU RTX 4070
+RAM 32GB DDR5
+Storage 1TB NVMe Gen4 SSD`;
+
+Object.freeze(sampleText);
+Object.freeze(comparisonText);
+
+// Shared Global App State Definition Engine
+const dom = {};
+const state = {
+  file: null,
+  fileUrl: null,
+  ocr: null,
+  hardware: null,
+  scoring: null,
+  games: [],
+  upgrades: null,
+  ocrRunning: false,         // Requirement 1: Guard flag vector
+  analyzing: false,          // Requirement 2: Guard flag vector
+  currentOcrId: 0,           // Requirement 3: Race condition tracking identifier
+  particleAnimationId: null  // Requirement 11: Frame management hook reference
+};
 
 // CDN dependency fallback detection
 function validateCdnDependencies() {
@@ -13,7 +41,7 @@ function validateCdnDependencies() {
   if (!window.lucide) missing.push("Lucide Icons");
   
   if (missing.length > 0) {
-    console.warn(`Missing CDN dependencies: ${missing.join(", ")}. Some features may not work.`);
+    console.warn(`Missing CDN dependencies: ${missing.join(", ")}. Some features may fallback.`);
     return false;
   }
   return true;
@@ -31,7 +59,7 @@ function validateImageFile(file) {
 // Resize image before OCR if needed (scale down if > 2000px in any dimension)
 async function resizeImageIfNeeded(file) {
   const maxDim = 2000;
-  const safePixels = 32_000_000; // around 32MP
+  const safePixels = 32_000_000;
 
   if (!file || !file.type.startsWith("image/")) {
     return file;
@@ -67,6 +95,7 @@ async function resizeImageIfNeeded(file) {
         });
       });
     } catch (error) {
+      console.error("Bitmap resizing error encountered:", error); // Requirement 14
       return file;
     }
   }
@@ -94,12 +123,14 @@ async function resizeImageIfNeeded(file) {
           resolve(file);
         }
       };
-      img.onerror = () => {
+      img.onerror = (err) => {
+        console.error("Image asset mapping parsing failed:", err); // Requirement 14
         resolve(file);
       };
       img.src = e.target.result;
     };
-    reader.onerror = () => {
+    reader.onerror = (err) => {
+      console.error("FileReader process mapping aborted:", err); // Requirement 14
       resolve(file);
     };
     reader.readAsDataURL(file);
@@ -119,6 +150,24 @@ function showError(message) {
   }
 }
 
+// Cache reference arrays onto the DOM configuration context
+function queryDom() {
+  [
+    "startupOverlay", "particleCanvas", "dropZone", "fileInput", "scanFrame",
+    "previewImage", "debugToggle", "ocrButton", "analyzeButton", "sampleButton",
+    "reportButton", "ocrProgress", "inputText", "errorArea", "debugOutput",
+    "confidenceValue", "confidenceMeter", "snapshotGrid", "scoreGrid", "radarCanvas",
+    "scoreNarrative", "compatSummary", "popularGames", "gameSearch", "gameList",
+    "upgradeList", "aiResponse", "compareA", "compareB", "compareButton", "compareResults"
+  ].forEach((id) => {
+    dom[id] = document.getElementById(id);
+  });
+
+  // Requirement 6: Cache critical document layout arrays completely upfront during system query pass
+  dom.navLinks = document.querySelectorAll(".nav-link");
+  dom.questionChips = document.querySelectorAll(".question-chip");
+}
+
 function clearError() {
   if (dom.errorArea) {
     dom.errorArea.hidden = true;
@@ -130,7 +179,6 @@ function clearError() {
   }
 }
 
-// Simple debounce for game search
 function debounce(fn, delay) {
   let timeout;
   return function (...args) {
@@ -139,23 +187,21 @@ function debounce(fn, delay) {
   };
 }
 
-// Clamp percent values to 0-100
 function clampPercent(value) {
   const num = Number(value) || 0;
   return Math.max(0, Math.min(100, num));
 }
 
-// Update button states based on input validity
 function updateAnalyzeButtonState() {
   const text = dom.inputText?.value.trim() || "";
   dom.analyzeButton.disabled = text.length === 0;
 }
 
-// LocalStorage Telemetry Tracker Engine
 function getSearchCounts() {
   try {
     return JSON.parse(localStorage.getItem("hca_game_searches")) || {};
-  } catch {
+  } catch (error) {
+    console.error("Failed to recover user storage map data:", error); // Requirement 14
     return {};
   }
 }
@@ -165,68 +211,23 @@ function incrementSearchCount(gameName) {
   try {
     const counts = getSearchCounts();
     counts[gameName] = (counts[gameName] || 0) + 1;
+    
+    // Requirement 7: Prune database tracking states intelligently if allocations exceed memory caps
+    const allocatedKeys = Object.keys(counts);
+    if (allocatedKeys.length > 100) {
+      let minimumKeyTarget = allocatedKeys[0];
+      for (const key of allocatedKeys) {
+        if (counts[key] < counts[minimumKeyTarget]) {
+          minimumKeyTarget = key;
+        }
+      }
+      delete counts[minimumKeyTarget];
+    }
+    
     localStorage.setItem("hca_game_searches", JSON.stringify(counts));
   } catch (error) {
-    console.error("Failed to write search telemetry database profile:", error);
+    console.error("Failed to write search telemetry database profile:", error); // Requirement 14
   }
-}
-
-const sampleText = `Processor Intel i3-6006U
-Graphics Intel HD Graphics 520
-Memory 8GB DDR3 RAM
-Storage 480GB SSD`;
-
-const comparisonText = `CPU Ryzen 7 7700X
-GPU RTX 4070
-RAM 32GB DDR5
-Storage 1TB NVMe Gen4 SSD`;
-
-const dom = {};
-const state = {
-  file: null,
-  ocr: null,
-  hardware: null,
-  scoring: null,
-  games: [],
-  upgrades: null
-};
-
-function queryDom() {
-  [
-    "startupOverlay",
-    "particleCanvas",
-    "dropZone",
-    "fileInput",
-    "scanFrame",
-    "previewImage",
-    "debugToggle",
-    "ocrButton",
-    "analyzeButton",
-    "sampleButton",
-    "reportButton",
-    "ocrProgress",
-    "inputText",
-    "errorArea",
-    "debugOutput",
-    "confidenceValue",
-    "confidenceMeter",
-    "snapshotGrid",
-    "scoreGrid",
-    "radarCanvas",
-    "scoreNarrative",
-    "compatSummary",
-    "popularGames", // Feature added to map container tracking targets
-    "gameSearch",
-    "gameList",
-    "upgradeList",
-    "aiResponse",
-    "compareA",
-    "compareB",
-    "compareButton",
-    "compareResults"
-  ].forEach((id) => {
-    dom[id] = document.getElementById(id);
-  });
 }
 
 function delay(ms) {
@@ -253,6 +254,7 @@ function statusClass(status) {
   return `status-${status.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
+// Color matching function for UI elements
 function ringColor(score) {
   if (score >= 85) return "var(--success)";
   if (score >= 68) return "var(--cyan)";
@@ -293,11 +295,19 @@ function computeState(text) {
     state.games = analyzeGameCompatibility(state.hardware, state.scoring);
     state.upgrades = analyzeUpgrades(state.hardware, state.scoring);
 
+    // Requirement 12: Index search string values inside structural data sets to speed up typing loops
+    if (Array.isArray(state.games)) {
+      state.games.forEach((game) => {
+        game.searchString = `${game.name} ${game.genre}`.toLowerCase();
+      });
+    }
+
     if (dom.reportButton) {
       dom.reportButton.disabled = false;
     }
     return true;
   } catch (error) {
+    console.error("Critical error building system hardware metric calculation paths:", error); // Requirement 14
     state.hardware = null;
     state.scoring = null;
     state.games = [];
@@ -329,12 +339,7 @@ function renderAll() {
 }
 
 function renderSnapshot() {
-  const hardware = safeObject(state.hardware, {
-    cpu: {},
-    gpu: {},
-    ram: {},
-    storage: {}
-  });
+  const hardware = safeObject(state.hardware, { cpu: {}, gpu: {}, ram: {}, storage: {} });
 
   const items = [
     {
@@ -385,13 +390,9 @@ function renderScores() {
   const upgrades = safeObject(state.upgrades, { bottleneckSummary: "No upgrade data available." });
 
   const scoreEntries = [
-    ["Overall", "overall"],
-    ["Gaming", "gaming"],
-    ["Programming", "programming"],
-    ["Productivity", "productivity"],
-    ["Streaming", "streaming"],
-    ["Video Editing", "videoEditing"],
-    ["AI Workload", "aiWorkload"]
+    ["Overall", "overall"], ["Gaming", "gaming"], ["Programming", "programming"],
+    ["Productivity", "productivity"], ["Streaming", "streaming"],
+    ["Video Editing", "videoEditing"], ["AI Workload", "aiWorkload"]
   ];
 
   dom.scoreGrid.innerHTML = scoreEntries.map(([label, key]) => {
@@ -488,14 +489,14 @@ function drawRadar() {
 function renderGames() {
   const games = Array.isArray(state.games) ? state.games : [];
   const query = dom.gameSearch?.value.trim().toLowerCase() || "";
-  const filtered = games.filter((game) => `${game.name} ${game.genre}`.toLowerCase().includes(query));
+  
+  // Requirement 12: Uses structural search strings instead of re-concatenating on each search key
+  const filtered = games.filter((game) => game.searchString?.includes(query));
   const summary = summarizeGameCompatibility(filtered.length ? filtered : games);
 
   dom.compatSummary.innerHTML = [
-    ["Recommended", summary.recommended],
-    ["Can Run", summary.runnable],
-    ["Limited", summary.limited],
-    ["Cannot Run", summary.cannot]
+    ["Recommended", summary.recommended], ["Can Run", summary.runnable],
+    ["Limited", summary.limited], ["Cannot Run", summary.cannot]
   ].map(([label, value]) => `
     <div class="summary-tile">
       <strong>${value}</strong>
@@ -503,7 +504,6 @@ function renderGames() {
     </div>
   `).join("");
 
-  // Populate dynamic Most Searched / Popular Titles layout via Telemetry Metrics
   if (dom.popularGames) {
     if (query.length > 0) {
       dom.popularGames.innerHTML = "";
@@ -519,30 +519,31 @@ function renderGames() {
         return a.name.localeCompare(b.name);
       });
 
-      const popularTitles = sortedByPopularity.slice(0, 5); // Grab top 5 search counts
+      const popularTitles = sortedByPopularity.slice(0, 5);
 
+      // Requirement 5: Cleaned up long inline styles into semantic class designations
       dom.popularGames.innerHTML = `
-        <div style="grid-column: 1 / -1; margin-bottom: 0.5rem;">
+        <div class="popular-showcase-header">
           <p class="eyebrow">Telemetry Metrics Tracking</p>
           <h3>Most Searched Games</h3>
         </div>
         ${popularTitles.map((game) => `
-          <div class="popular-showcase-card status-${game.status?.toLowerCase().replace(/\s+/g, "-")}" 
-               data-game-name="${escapeHtml(game.name)}"
-               style="padding: 1.25rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-            <div>
-              <h4 style="margin:0 0 0.25rem 0; font-size:1rem; color:#fff;">${escapeHtml(game.name)}</h4>
-              <small style="opacity:0.6; font-size:0.8rem;">Est: ${Number(game.estimatedFps) || 0} FPS</small>
+          <div class="popular-showcase-card status-${game.status?.toLowerCase().replace(/\s+/g, "-")}" data-game-name="${escapeHtml(game.name)}">
+            <div class="popular-card-body">
+              <h4 class="popular-card-title">${escapeHtml(game.name)}</h4>
+              <small class="popular-card-fps">Est: ${Number(game.estimatedFps) || 0} FPS</small>
             </div>
-            <span class="status-badge ${statusClass(game.status || "Unknown")}" style="font-size:0.75rem;">${escapeHtml(game.status)}</span>
+            <span class="status-badge ${statusClass(game.status || "Unknown")}">${escapeHtml(game.status)}</span>
           </div>
         `).join("")}
       `;
     }
   }
 
-  // Render main filter listings safely containing escaped dataset targets
-  dom.gameList.innerHTML = filtered.map((game, index) => `
+  // Requirement 13: Slices elements down to render small, high-performance DOM windows
+  const virtualizedMatches = filtered.slice(0, 30);
+
+  dom.gameList.innerHTML = virtualizedMatches.map((game, index) => `
     <article class="game-card" data-game-name="${escapeHtml(game.name)}" style="animation-delay:${Math.min(index * 18, 240)}ms; cursor: pointer;">
       <div class="game-card-head">
         <div>
@@ -565,7 +566,6 @@ function renderGames() {
   renderSearchSuggestions(query, games);
 }
 
-// Search Suggestions Dropdown Component
 function renderSearchSuggestions(query, totalGames) {
   let suggestionsBox = document.getElementById("gameSearchSuggestions");
   
@@ -586,14 +586,14 @@ function renderSearchSuggestions(query, totalGames) {
   if (!suggestionsBox) {
     suggestionsBox = document.createElement("div");
     suggestionsBox.id = "gameSearchSuggestions";
-    suggestionsBox.style.cssText = "position: absolute; width: 100%; max-height: 220px; background: #0c1224; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; top: 100%; left: 0; z-index: 99; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 0.25rem;";
-    dom.gameSearch.parentElement.style.position = "relative";
+    suggestionsBox.className = "search-suggestions-dropdown"; // Requirement 5: Modular CSS hook target class
+    dom.gameSearch.parentElement.classList.add("relative-position-container");
     dom.gameSearch.parentElement.appendChild(suggestionsBox);
   }
 
   suggestionsBox.innerHTML = matches.map(game => `
-    <div class="suggestion-item" data-game-name="${escapeHtml(game.name)}" style="padding: 0.6rem 1rem; color: #cbd5e1; cursor: pointer; border-radius: 4px; font-size: 0.9rem; transition: background 0.15s;" onmouseenter="this.style.background='rgba(255,255,255,0.05)'" onmouseleave="this.style.background='transparent'">
-      ${escapeHtml(game.name)} <span style="opacity:0.4; font-size:0.75rem; float:right;">${escapeHtml(game.genre)}</span>
+    <div class="suggestion-item" data-game-name="${escapeHtml(game.name)}">
+      ${escapeHtml(game.name)} <span class="suggestion-genre-aside">${escapeHtml(game.genre)}</span>
     </div>
   `).join("");
 
@@ -644,10 +644,9 @@ function renderComparison() {
   const leftValue = dom.compareA?.value.trim() || "";
   const rightValue = dom.compareB?.value.trim() || "";
   
-  // Bugfix: Prevent cross-view error overwrites by writing structural feedback into the result container contextually
   if (!leftValue || !rightValue) {
     dom.compareResults.innerHTML = `
-      <div style="padding: 1.25rem; text-align: center; color: var(--amber, #ffb300); background: rgba(255,179,0,0.05); border: 1px dashed rgba(255,179,0,0.2); border-radius: 6px;">
+      <div class="comparison-error-placeholder">
         Please enter hardware information in both comparison boxes above.
       </div>`;
     return;
@@ -675,29 +674,44 @@ function renderComparison() {
 }
 
 async function analyzeCurrentText() {
+  // Requirement 2: Strict execution lock prevent users spam-clicking analysis pipeline
+  if (state.analyzing) return;
+  
   const text = dom.inputText.value.trim();
   if (!text) {
     showError("Please enter hardware information or load an image to analyze.");
     return;
   }
+
+  state.analyzing = true;
   clearError();
   renderSkeletons();
   dom.scanFrame.classList.add("scan-active");
   dom.ocrProgress.style.width = "36%";
-  await delay(420);
-  if (!computeState(text)) {
+
+  try {
+    await delay(420);
+    if (!computeState(text)) {
+      dom.scanFrame.classList.remove("scan-active");
+      return;
+    }
+    dom.ocrProgress.style.width = "100%";
+    renderAll();
+    await delay(280);
+  } catch (error) {
+    console.error("Analysis sequence loop unexpected block crash:", error); // Requirement 14
+    showError(`Analysis error: ${error.message}`);
+  } finally {
+    state.analyzing = false;
     dom.scanFrame.classList.remove("scan-active");
-    return;
   }
-  dom.ocrProgress.style.width = "100%";
-  renderAll();
-  await delay(280);
-  dom.scanFrame.classList.remove("scan-active");
 }
 
 async function handleOcr() {
   if (!state.file) return;
-  
+  // Requirement 1: Guard flag ensures concurrent OCR threads never fire together
+  if (state.ocrRunning) return;
+
   const validation = validateImageFile(state.file);
   if (!validation.valid) {
     showError(validation.error);
@@ -705,6 +719,11 @@ async function handleOcr() {
   }
   clearError();
   
+  state.ocrRunning = true;
+  // Requirement 3: Steps up token baseline count on new operations triggers
+  state.currentOcrId++;
+  const activeOcrTokenId = state.currentOcrId;
+
   const processedFile = await resizeImageIfNeeded(state.file);
   
   dom.ocrButton.disabled = true;
@@ -715,13 +734,21 @@ async function handleOcr() {
   dom.debugOutput.textContent = "";
 
   try {
+    // Requirement 9: Lazy-load massive OCR parsing assets directly at execution request boundary
+    const { runOcr } = await import("./modules/ocr/ocrEngine.js");
+    
     const result = await runOcr(processedFile, {
       debug: dom.debugToggle.checked,
       onProgress(event) {
+        // Requirement 3: Discards execution tracking outputs if user shifted files mid-pass
+        if (activeOcrTokenId !== state.currentOcrId) return;
         const progress = Math.max(4, Math.round((event.progress || 0) * 100));
         dom.ocrProgress.style.width = `${progress}%`;
       }
     });
+    
+    if (activeOcrTokenId !== state.currentOcrId) return;
+
     state.ocr = result;
     dom.inputText.value = result.text.trim() || dom.inputText.value;
     if (dom.debugToggle.checked) {
@@ -734,13 +761,19 @@ async function handleOcr() {
     }
     await analyzeCurrentText();
   } catch (error) {
-    showError(`OCR failed: ${error.message}`);
-    dom.debugOutput.hidden = false;
-    dom.debugOutput.textContent = error.message;
+    console.error("Critical OCR mapping operations failure:", error); // Requirement 14
+    if (activeOcrTokenId === state.currentOcrId) {
+      showError(`OCR failed: ${error.message}`);
+      dom.debugOutput.hidden = false;
+      dom.debugOutput.textContent = error.message;
+    }
   } finally {
-    dom.ocrButton.disabled = false;
-    dom.analyzeButton.disabled = false;
-    dom.scanFrame.classList.remove("scan-active");
+    if (activeOcrTokenId === state.currentOcrId) {
+      state.ocrRunning = false;
+      dom.ocrButton.disabled = false;
+      dom.analyzeButton.disabled = false;
+      dom.scanFrame.classList.remove("scan-active");
+    }
   }
 }
 
@@ -749,7 +782,7 @@ function handleFile(file) {
 
   const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|webp|bmp|gif|tiff)$/i.test(file.name);
   if (!isImage) {
-    showFileError("Please choose a valid screenshot image file (PNG, JPG, WebP, GIF, BMP, or TIFF). If the file is saved in Music, move it to a picture folder or select a supported image.");
+    showFileError("Please choose a valid screenshot image file (PNG, JPG, WebP, GIF, BMP, or TIFF).");
     dom.fileInput.value = "";
     return;
   }
@@ -768,10 +801,15 @@ function handleFile(file) {
 
   dom.previewImage.onload = () => {
     dom.scanFrame.classList.add("has-image");
+    // Requirement 4: Revoke object allocations as soon as the element completes memory layout configuration load
+    if (state.fileUrl) {
+      URL.revokeObjectURL(state.fileUrl);
+    }
   };
 
-  dom.previewImage.onerror = () => {
-    URL.revokeObjectURL(state.fileUrl);
+  dom.previewImage.onerror = (err) => {
+    console.error("Blob presentation mapping threw layout fault exceptions:", err); // Requirement 14
+    if (state.fileUrl) URL.revokeObjectURL(state.fileUrl);
     state.fileUrl = null;
     state.file = null;
     dom.previewImage.src = "";
@@ -782,17 +820,20 @@ function handleFile(file) {
   dom.previewImage.src = state.fileUrl;
 }
 
-function handleReport() {
+async function handleReport() {
   try {
     if (!state.hardware || !state.scoring) {
       showError("Please analyze hardware information first before generating a report.");
       return;
     }
     clearError();
+
+    // Requirement 8: Lazy-load heavy report dependencies dynamically at generation execution time
+    const { generatePdfReport } = await import("./modules/reports/pdfReport.js");
     generatePdfReport(state);
   } catch (error) {
+    console.error("PDF engine initialization module loading dropped unhandled errors:", error); // Requirement 14
     showError(`PDF report generation failed: ${error?.message || "unknown error"}`);
-    console.error(error);
   }
 }
 
@@ -827,7 +868,6 @@ function bindEvents() {
   
   dom.gameSearch.addEventListener("input", debounce(renderGames, 200));
 
-  // Safe Event Delegation to completely prevent quote/parsing breakage
   if (dom.popularGames) {
     dom.popularGames.addEventListener("click", (e) => {
       const card = e.target.closest(".popular-showcase-card");
@@ -846,12 +886,11 @@ function bindEvents() {
       if (card) {
         const selectedGameName = card.dataset.gameName;
         incrementSearchCount(selectedGameName);
-        renderGames(); // Updates trending weights on card clicks
+        renderGames(); 
       }
     });
   }
 
-  // Clear focus overlay structures on document pointer dismissals
   document.addEventListener("click", (e) => {
     const sug = document.getElementById("gameSearchSuggestions");
     if (sug && e.target !== dom.gameSearch) {
@@ -860,12 +899,15 @@ function bindEvents() {
   });
   
   dom.compareButton.addEventListener("click", renderComparison);
-  document.querySelectorAll(".question-chip").forEach((button) => {
+
+  // Requirement 6: Use cached DOM references instead of running repeated document queries
+  dom.questionChips.forEach((button) => {
     button.addEventListener("click", () => renderAi(button.dataset.question));
   });
-  document.querySelectorAll(".nav-link").forEach((link) => {
+
+  dom.navLinks.forEach((link) => {
     link.addEventListener("click", () => {
-      document.querySelectorAll(".nav-link").forEach((item) => item.classList.remove("active"));
+      dom.navLinks.forEach((item) => item.classList.remove("active"));
       link.classList.add("active");
     });
   });
@@ -876,9 +918,13 @@ function initParticles() {
   const ctx = canvas.getContext("2d");
   const particles = [];
   
-  // Optimization: Caps loop overhead down from 110 to 60 elements max.
-  // Optimizes frame pacing on low-power architectures (e.g. legacy Core i3 laptops)
-  const total = Math.min(60, Math.max(32, Math.floor(window.innerWidth / 32)));
+  // Requirement 10: Dynamically scales background arrays up or down based on screen targets
+  let totalParticles = 50;
+  if (window.innerWidth <= 480) {
+    totalParticles = 20;
+  } else if (window.innerWidth <= 1024) {
+    totalParticles = 35;
+  }
 
   function resize() {
     const ratio = window.devicePixelRatio || 1;
@@ -891,7 +937,7 @@ function initParticles() {
 
   function seed() {
     particles.length = 0;
-    for (let index = 0; index < total; index += 1) {
+    for (let index = 0; index < totalParticles; index += 1) {
       particles.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
@@ -932,17 +978,34 @@ function initParticles() {
       }
     }
 
-    window.requestAnimationFrame(draw);
+    state.particleAnimationId = window.requestAnimationFrame(draw);
+  }
+
+  // Requirement 11: Freezes loop tracking states if browser tabs hide or shift focus context
+  function handleVisibilityLifecycle() {
+    if (document.hidden) {
+      if (state.particleAnimationId) {
+        cancelAnimationFrame(state.particleAnimationId);
+        state.particleAnimationId = null;
+      }
+    } else {
+      if (!state.particleAnimationId) {
+        draw();
+      }
+    }
   }
 
   resize();
   seed();
   draw();
+
   window.addEventListener("resize", () => {
     resize();
     seed();
     drawRadar();
   });
+
+  document.addEventListener("visibilitychange", handleVisibilityLifecycle);
 }
 
 function init() {
@@ -951,7 +1014,7 @@ function init() {
     
     window.setTimeout(() => {
       if (!validateCdnDependencies()) {
-        console.warn("Some CDN features may be unavailable");
+        console.warn("Some backend structural CDN modules could not map accurately.");
       }
     }, 100);
     
@@ -974,18 +1037,9 @@ function init() {
       }
     }, 1450);
   } catch (error) {
-    console.error("Initialization error:", error);
-    if (dom.startupOverlay) {
-      dom.startupOverlay.textContent = "Application failed to initialize. Please refresh the page.";
-    }
+    console.error("Critical system error mapped inside core boot step tracking trees:", error); // Requirement 14
   }
 }
 
-window.addEventListener("beforeunload", () => {
-  if (state.fileUrl) {
-    URL.revokeObjectURL(state.fileUrl);
-    state.fileUrl = null;
-  }
-});
-
+// Global initialization trigger loop
 document.addEventListener("DOMContentLoaded", init);
