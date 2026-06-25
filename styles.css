@@ -1,14 +1,20 @@
 :root {
   color-scheme: dark;
+  
+  /* Core Colors */
   --bg: #050914;
   --panel: rgba(11, 18, 34, 0.68);
   --panel-strong: rgba(13, 22, 42, 0.86);
   --panel-soft: rgba(255, 255, 255, 0.055);
+  
+  /* Accents */
   --line: rgba(185, 211, 255, 0.16);
   --line-strong: rgba(185, 211, 255, 0.28);
   --text: #f6f9ff;
   --muted: #9eadc7;
   --soft: #6f7f9d;
+  
+  /* Semantic */
   --cyan: #66e4ff;
   --teal: #46f0c4;
   --violet: #9b7cff;
@@ -16,12 +22,19 @@
   --amber: #ffd166;
   --danger: #ff647c;
   --success: #64f2a8;
+  
+  /* Elevation & Effects */
   --shadow: 0 28px 96px rgba(0, 0, 0, 0.5);
   --shadow-soft: 0 14px 32px rgba(0, 0, 0, 0.22);
   --focus: rgba(102, 228, 255, 0.24);
   --panel-highlight: rgba(102, 228, 255, 0.14);
-  --radius: 14px;
+  
+  /* Spacing & Architecture */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -31,6 +44,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 24px;
 }
 
 body {
@@ -69,6 +83,7 @@ textarea {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 textarea,
@@ -97,7 +112,7 @@ input {
   max-width: 44rem;
   max-height: 44rem;
   border-radius: 999px;
-  filter: blur(70px);
+  filter: blur(45px);
   opacity: 0.28;
   transform: translate3d(0, 0, 0);
   animation: auroraFloat 16s var(--ease) infinite alternate;
@@ -164,7 +179,7 @@ input {
   width: 82px;
   height: 82px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
   color: #fff;
   font-weight: 800;
@@ -191,33 +206,38 @@ input {
 .app-shell {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
-  gap: 18px;
+  gap: clamp(12px, 1.5vw, 18px);
   width: min(1720px, 100%);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 18px;
+  padding: clamp(12px, 2vw, 18px);
 }
 
 .glass-panel {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background-color: rgba(10, 18, 34, 0.92);
   background-image:
     linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)),
     linear-gradient(180deg, rgba(8, 16, 32, 0.92), rgba(6, 10, 18, 0.88));
   background-clip: padding-box, border-box;
   box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(26px) saturate(180%);
   border-image: linear-gradient(145deg, rgba(102, 228, 255, 0.28), rgba(255, 110, 168, 0.22)) 1;
+}
+
+@supports (backdrop-filter: blur(10px)) {
+  .glass-panel {
+    backdrop-filter: blur(16px) saturate(180%);
+  }
 }
 
 .sidebar {
   position: sticky;
-  top: 18px;
+  top: clamp(12px, 2vw, 18px);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 36px);
-  height: calc(100dvh - 36px);
+  height: calc(100vh - clamp(24px, 4vw, 36px));
+  height: calc(100dvh - clamp(24px, 4vw, 36px));
   padding: 16px;
 }
 
@@ -234,7 +254,7 @@ input {
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, rgba(102, 228, 255, 0.96), rgba(70, 240, 196, 0.88) 45%, rgba(255, 209, 102, 0.86));
   color: #04111c;
   font-weight: 900;
@@ -266,10 +286,10 @@ input {
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   text-decoration: none;
-  transition: background 0.28s var(--ease), color 0.28s var(--ease), transform 0.28s var(--ease), border-color 0.28s var(--ease);
+  transition: transform 0.25s var(--ease), background 0.25s var(--ease), color 0.25s var(--ease);
 }
 
 .nav-link svg {
@@ -283,7 +303,6 @@ input {
   background: rgba(102, 228, 255, 0.08);
   color: var(--text);
   transform: translateX(4px);
-  box-shadow: 0 12px 32px rgba(102, 228, 255, 0.08);
 }
 
 .sidebar-status {
@@ -293,7 +312,7 @@ input {
   margin-top: auto;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: 0.78rem;
   background: rgba(255, 255, 255, 0.045);
@@ -309,8 +328,15 @@ input {
 
 .main-content {
   display: grid;
-  gap: 18px;
+  gap: clamp(12px, 1.5vw, 18px);
   min-width: 0;
+}
+
+.content-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 1000px;
+  padding: clamp(12px, 2vw, 18px);
+  position: relative;
 }
 
 .topbar {
@@ -322,7 +348,6 @@ input {
   padding: 24px 26px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(10, 20, 38, 0.96), rgba(6, 11, 20, 0.9));
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
 }
 
 .eyebrow {
@@ -375,10 +400,10 @@ h3 {
 .icon-button,
 .question-chip {
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   background: rgba(255, 255, 255, 0.06);
-  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease);
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 
 .button {
@@ -401,7 +426,6 @@ h3 {
   border-color: transparent;
   background: linear-gradient(135deg, rgba(102, 228, 255, 0.96), rgba(70, 240, 196, 0.92));
   color: #04111c;
-  box-shadow: 0 18px 42px rgba(102, 228, 255, 0.22);
   text-shadow: 0 0 6px rgba(255, 255, 255, 0.16);
 }
 
@@ -419,7 +443,6 @@ h3 {
 .question-chip:hover {
   border-color: rgba(102, 228, 255, 0.58);
   transform: translateY(-2px);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28), 0 0 28px rgba(102, 228, 255, 0.14);
 }
 
 .nav-link:focus-visible,
@@ -446,14 +469,13 @@ h3 {
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.1fr);
-  gap: 18px;
+  gap: clamp(12px, 1.5vw, 18px);
 }
 
 .scanner-panel,
 .system-panel,
-.content-section,
 .split-section > article {
-  padding: 18px;
+  padding: clamp(12px, 2vw, 18px);
   position: relative;
 }
 
@@ -539,7 +561,7 @@ h3 {
   min-height: 250px;
   overflow: hidden;
   border: 1px dashed rgba(102, 228, 255, 0.35);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background:
     linear-gradient(135deg, rgba(102, 228, 255, 0.08), transparent),
     rgba(255, 255, 255, 0.04);
@@ -549,7 +571,7 @@ h3 {
   position: absolute;
   inset: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   content: "";
 }
 
@@ -558,6 +580,7 @@ h3 {
   width: 100%;
   max-height: 310px;
   object-fit: contain;
+  image-rendering: auto;
 }
 
 .scan-frame.has-image img {
@@ -613,7 +636,7 @@ h3 {
   margin-top: 12px;
   padding: 12px 14px;
   border: 1px solid rgba(255, 100, 124, 0.5);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 100, 124, 0.08);
   color: rgba(255, 147, 147, 1);
   font-size: 0.9rem;
@@ -652,19 +675,18 @@ h3 {
   padding: 14px;
   resize: vertical;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   outline: none;
   background: rgba(0, 0, 0, 0.22);
   color: #dfe9ff;
   line-height: 1.55;
-  transition: border-color 0.24s var(--ease), box-shadow 0.24s var(--ease);
+  transition: border-color 0.2s var(--ease);
 }
 
 .ocr-text:focus,
 .compare-box:focus,
 .search-box input:focus {
   border-color: rgba(102, 228, 255, 0.5);
-  box-shadow: 0 0 0 4px rgba(102, 228, 255, 0.09);
 }
 
 .debug-output {
@@ -673,12 +695,13 @@ h3 {
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.26);
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.76rem;
   line-height: 1.45;
+  scrollbar-width: thin;
 }
 
 .confidence-pill {
@@ -686,7 +709,7 @@ h3 {
   min-width: 92px;
   padding: 10px 12px;
   border: 1px solid rgba(102, 228, 255, 0.22);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(102, 228, 255, 0.08);
   text-align: right;
 }
@@ -705,6 +728,7 @@ h3 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  contain: layout paint style;
 }
 
 .snapshot-card,
@@ -716,21 +740,20 @@ h3 {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.055);
 }
 
 .snapshot-card {
   min-height: 132px;
   padding: 14px;
-  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), background 0.25s var(--ease);
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 
 .snapshot-card:hover,
 .game-card:hover,
 .upgrade-card:hover {
   border-color: rgba(102, 228, 255, 0.34);
-  background: rgba(255, 255, 255, 0.075);
   transform: translateY(-2px);
 }
 
@@ -759,7 +782,7 @@ h3 {
   width: 36px;
   height: 36px;
   margin-bottom: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(102, 228, 255, 0.12);
   color: var(--cyan);
 }
@@ -810,6 +833,7 @@ h3 {
   display: grid;
   grid-template-columns: repeat(7, minmax(130px, 1fr));
   gap: 12px;
+  contain: layout paint style;
 }
 
 .score-card {
@@ -818,8 +842,7 @@ h3 {
   text-align: center;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 
 .score-card:hover {
@@ -838,7 +861,6 @@ h3 {
   background:
     radial-gradient(circle at 50% 50%, rgba(8, 13, 26, 1) 58%, transparent 59%),
     conic-gradient(var(--ring-color, var(--cyan)) calc(var(--score) * 1%), rgba(255, 255, 255, 0.08) 0);
-  box-shadow: 0 0 34px rgba(102, 228, 255, 0.28);
   box-shadow: 0 0 34px color-mix(in srgb, var(--ring-color, var(--cyan)) 28%, transparent);
   transition: background 0.8s var(--ease);
 }
@@ -882,7 +904,7 @@ h3 {
 .score-narrative {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.18);
 }
 
@@ -903,7 +925,7 @@ h3 {
   height: 42px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -952,6 +974,7 @@ h3 {
   padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(102, 228, 255, 0.24) transparent;
+  contain: layout paint style;
 }
 
 .game-list::-webkit-scrollbar,
@@ -982,6 +1005,7 @@ h3 {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
   border: 1px solid rgba(255, 255, 255, 0.08);
   animation: reveal 0.45s var(--ease) both;
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 
 .game-card-head {
@@ -1040,7 +1064,7 @@ h3 {
 
 .metric {
   padding: 9px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -1065,7 +1089,7 @@ h3 {
 .split-section {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 18px;
+  gap: clamp(12px, 1.5vw, 18px);
 }
 
 .upgrade-list {
@@ -1075,6 +1099,7 @@ h3 {
 
 .upgrade-card {
   padding: 14px;
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 
 .upgrade-top {
@@ -1135,7 +1160,7 @@ h3 {
   margin-top: 14px;
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: linear-gradient(145deg, rgba(12, 22, 44, 0.86), rgba(15, 26, 46, 0.96));
   box-shadow: inset 0 0 0 1px rgba(102, 228, 255, 0.1);
   color: #e6f3ff;
@@ -1169,9 +1194,9 @@ h3 {
   margin-top: 14px;
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: rgba(6, 10, 18, 0.82);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  scrollbar-width: thin;
 }
 
 .compare-row {
@@ -1196,7 +1221,7 @@ h3 {
   position: relative;
   overflow: hidden;
   min-height: 120px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.055);
 }
 
