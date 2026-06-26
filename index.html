@@ -3,26 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#050914" />
-    
+    <meta name="theme-color" content="#0B1020" />
     <meta name="color-scheme" content="dark" />
     
-    <meta name="description" content="Hardware Conflict Analyzer Pro: Detect system hardware from screenshots, analyze performance scores, check game compatibility, and get upgrade recommendations with OCR and AI-powered analysis." />
-    <meta name="keywords" content="hardware analyzer, pc bottleneck calculator, cpu comparison, gpu comparison, game compatibility checker, hardware conflict analyzer" />
+    <meta name="description" content="Analyze CPU, GPU, RAM and Storage using OCR. Compare hardware, benchmark gaming performance, detect bottlenecks and generate upgrade recommendations." />
+    <meta name="keywords" content="hardware analyzer, pc bottleneck calculator, cpu comparison, gpu comparison, game compatibility checker, hardware conflict analyzer, pc build advisor" />
     <meta name="author" content="SM910 Tech" />
     <link rel="canonical" href="https://sm910-tech.github.io/hardware-conflict-analyzer/" />
-    <link rel="icon" href="./favicon.ico" />
     
+    <link rel="icon" href="./favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="mask-icon" href="./safari-pinned-tab.svg" color="#00F0FF" />
+    <meta name="msapplication-config" content="./browserconfig.xml" />
     <link rel="manifest" href="./manifest.json" />
 
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HCA Pro" />
+
     <meta property="og:title" content="Hardware Conflict Analyzer Pro" />
-    <meta property="og:description" content="Advanced hardware detection and performance analysis tool with OCR, game compatibility checker, and upgrade recommendations." />
+    <meta property="og:description" content="Analyze CPU, GPU, RAM and Storage using OCR. Compare hardware, benchmark gaming performance, and detect system bottlenecks instantly." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://sm910-tech.github.io/hardware-conflict-analyzer/" />
+    <meta property="og:site_name" content="Hardware Conflict Analyzer Suite" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:image" content="https://sm910-tech.github.io/hardware-conflict-analyzer/preview.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Hardware Conflict Analyzer Pro" />
-    <meta name="twitter:description" content="Analyze your PC hardware and get performance insights." />
-    <title>Hardware Conflict Analyzer Pro</title>
+    <meta name="twitter:description" content="Advanced hardware optimization and performance evaluation system." />
+    <meta name="twitter:image" content="https://sm910-tech.github.io/hardware-conflict-analyzer/preview.png" />
+    
+    <title>Hardware Conflict Analyzer Pro - Optimize Your Rig</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" as="style" />
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet" />
     
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://unpkg.com" />
@@ -38,16 +56,33 @@
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "Hardware Conflict Analyzer Pro",
+      "url": "https://sm910-tech.github.io/hardware-conflict-analyzer/",
       "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "Any"
+      "operatingSystem": "Any",
+      "description": "Analyze CPU, GPU, RAM and Storage hardware using visual screenshot OCR analysis. Benchmarks systemic bottleneck issues and estimates raw gaming cross-compatibilities.",
+      "author": {
+        "@type": "Organization",
+        "name": "SM910 Tech"
+      }
     }
     </script>
   </head>
   <body>
+    <noscript>
+      <div class="noscript-overlay">
+        <div class="noscript-warning">
+          <i data-lucide="shield-alert"></i>
+          <h2>JavaScript Required</h2>
+          <p>Core parsing matrices require JavaScript execution. Please enable script allowances inside browser settings to launch the Analyzer Suite.</p>
+        </div>
+      </div>
+    </noscript>
+
     <canvas id="particleCanvas" class="particle-canvas" aria-hidden="true"></canvas>
     <div class="aurora aurora-a" aria-hidden="true"></div>
     <div class="aurora aurora-b" aria-hidden="true"></div>
     <div class="aurora aurora-c" aria-hidden="true"></div>
+    <div class="scanlines"></div>
 
     <div id="startupOverlay" class="startup-overlay">
       <div class="startup-core">
@@ -55,47 +90,51 @@
         <div class="startup-mark">HCA</div>
       </div>
       <div class="startup-copy">
-        <span>Hardware Conflict Analyzer Pro</span>
-        <small>Calibrating detection matrix</small>
+        <span>SYSTEM BOOT SEQUENCE</span>
+        <div class="boot-sequence-logs">
+          <small class="boot-log active">Loading OCR Engine...</small>
+          <small class="boot-log">Loading Hardware Database...</small>
+          <small class="boot-log">Initializing GPU Benchmark...</small>
+          <small class="boot-log-ready">SYSTEM READY</small>
+        </div>
       </div>
     </div>
 
     <div class="app-shell">
       <aside class="sidebar glass-panel">
         <a class="brand" href="#top" aria-label="Hardware Conflict Analyzer Pro">
-          <span class="brand-mark">H</span>
+          <span class="brand-mark"><i data-lucide="crosshair"></i></span>
           <span>
-            <strong>HCA Pro</strong>
-            <small>Analyzer Suite</small>
+            <strong>HCA PRO</strong>
+            <small>PC BUILDER SUITE</small>
           </span>
         </a>
         <nav class="nav-list" aria-label="Primary navigation">
-          <a href="#scanner" class="nav-link active"><i data-lucide="scan-line"></i><span>Scanner</span></a>
-          <a href="#scores" class="nav-link"><i data-lucide="gauge"></i><span>Scores</span></a>
-          <a href="#games" class="nav-link"><i data-lucide="gamepad-2"></i><span>Games</span></a>
-          <a href="#games" class="nav-link"><i data-lucide="flame"></i><span>Popular Games</span></a>
-          <a href="#upgrades" class="nav-link"><i data-lucide="arrow-up-right"></i><span>Upgrades</span></a>
-          <a href="#compare" class="nav-link"><i data-lucide="git-compare"></i><span>Compare Hardware</span></a>
+          <a href="#scanner" class="nav-link active"><i data-lucide="scan-line"></i><span>Dashboard</span></a>
+          <a href="#scores" class="nav-link"><i data-lucide="gauge"></i><span>Benchmarks</span></a>
+          <a href="#games" class="nav-link"><i data-lucide="gamepad-2"></i><span>Game Perf.</span></a>
+          <a href="#upgrades" class="nav-link"><i data-lucide="cpu"></i><span>Bottleneck Check</span></a>
+          <a href="#compare" class="nav-link"><i data-lucide="git-compare"></i><span>GPU/CPU Compare</span></a>
         </nav>
         <div class="sidebar-status">
           <span class="status-dot"></span>
-          <span>Parser confidence guard active</span>
+          <span>HUD Systems Online</span>
         </div>
       </aside>
 
       <main id="top" class="main-content" role="main">
         <header class="topbar glass-panel">
           <div>
-            <p class="eyebrow">Premium hardware intelligence</p>
-            <h1>Hardware Conflict Analyzer Pro</h1>
+            <p class="eyebrow">DETECT. ANALYZE. OPTIMIZE.</p>
+            <h1>ANALYZE YOUR PC LIKE A PRO</h1>
           </div>
           <div class="topbar-actions">
-            <button id="sampleButton" class="icon-button" type="button" title="Load calibrated sample">
-              <i data-lucide="sparkles"></i>
+            <button id="sampleButton" class="icon-button" type="button" title="Load Demo Build (Ctrl+O Shortcut)">
+              <i data-lucide="zap"></i>
             </button>
-            <button id="reportButton" class="button primary" type="button">
-              <i data-lucide="file-down"></i>
-              <span>PDF Report</span>
+            <button id="reportButton" class="button primary" type="button" title="Export PDF Report">
+              <i data-lucide="download"></i>
+              <span>Export Build</span>
             </button>
           </div>
         </header>
@@ -104,12 +143,12 @@
           <article class="scanner-panel glass-panel float-card">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">OCR hardware detection</p>
+                <p class="eyebrow">Build Analyzer</p>
                 <h2>System Intake</h2>
               </div>
               <label class="toggle">
                 <input id="debugToggle" type="checkbox" />
-                <span>Debug</span>
+                <span>Dev Mode</span>
               </label>
             </div>
 
@@ -119,9 +158,13 @@
                 <img id="previewImage" alt="Screenshot preview of system information" loading="lazy" />
                 <div class="scan-beam"></div>
                 <div class="drop-empty">
-                  <i data-lucide="image-up"></i>
-                  <span>Screenshot Intake</span>
-                  <small>PNG, JPG, WebP</small>
+                  <i data-lucide="crosshair"></i>
+                  <span>DRAG & DROP SCREENSHOT</span>
+                  <small>Supports PNG, JPG, WEBP</small>
+                  <div class="mobile-upload-triggers">
+                    <span class="mobile-upload-btn"><i data-lucide="camera"></i> Take Screenshot</span>
+                    <span class="mobile-upload-btn"><i data-lucide="image"></i> Choose Image</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -129,11 +172,11 @@
             <div class="button-row">
               <button id="ocrButton" class="button secondary" type="button" disabled>
                 <i data-lucide="scan-text"></i>
-                <span>Run OCR</span>
+                <span>Scan Specs</span>
               </button>
-              <button id="analyzeButton" class="button primary" type="button" disabled>
+              <button id="analyzeButton" class="button primary" type="button" disabled title="Analyze Build (Ctrl+Enter)">
                 <i data-lucide="cpu"></i>
-                <span>Analyze</span>
+                <span>Analyze Build</span>
               </button>
             </div>
 
@@ -142,20 +185,20 @@
             <div class="progress-shell">
               <div id="ocrProgress" class="progress-fill"></div>
             </div>
-            <p class="scanner-tip">For best results, use an About PC screenshot or paste the raw system details below.</p>
-            <textarea id="inputText" class="ocr-text" spellcheck="false" placeholder="Paste your system text or let OCR extract it from an image..."></textarea>
+            <p class="scanner-tip">Upload an "About PC" screenshot or enter raw specs below.</p>
+            <textarea id="inputText" class="ocr-text" spellcheck="false" placeholder="Enter your rig specs here..."></textarea>
             <div id="debugOutput" class="debug-output" hidden></div>
           </article>
 
           <article class="system-panel glass-panel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Detection output</p>
-                <h2>System Snapshot</h2>
+                <p class="eyebrow">Detected Components</p>
+                <h2>Active Loadout</h2>
               </div>
               <div class="confidence-pill">
                 <span id="confidenceValue">0%</span>
-                <small>confidence</small>
+                <small>accuracy</small>
               </div>
             </div>
             <div id="snapshotGrid" class="snapshot-grid"></div>
@@ -168,12 +211,12 @@
         <section id="scores" class="content-section glass-panel">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Performance scoring</p>
-              <h2>Score Matrix</h2>
+              <p class="eyebrow">Real World Benchmarks</p>
+              <h2>Performance Radar</h2>
             </div>
             <div class="score-legend">
-              <span>0</span>
-              <span>100</span>
+              <span>POWER</span>
+              <span>100 MAX</span>
             </div>
           </div>
           <div id="scoreGrid" class="score-grid"></div>
@@ -186,13 +229,21 @@
         <section id="games" class="content-section glass-panel">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">50+ title compatibility</p>
-              <h2>Game Compatibility</h2>
+              <p class="eyebrow">Will it run?</p>
+              <h2>Game Performance Library</h2>
             </div>
             <div class="search-box">
               <i data-lucide="search"></i>
-              <input id="gameSearch" type="search" placeholder="Search games" aria-label="Search games by name or genre" autocomplete="off" />
+              <input id="gameSearch" type="search" placeholder="Search game, GPU or genre... (Press '/' to focus)" aria-label="Search library by title, graphics provider or structural tags" autocomplete="off" />
             </div>
+          </div>
+          
+          <div class="game-filter-shelf">
+            <button class="filter-badge active" type="button">🔥 Trending</button>
+            <button class="filter-badge" type="button">⭐ Most Played</button>
+            <button class="filter-badge" type="button">🟢 Easy to Run</button>
+            <button class="filter-badge" type="button">🔴 AAA Games</button>
+            <button class="filter-badge" type="button">🎮 Esports</button>
           </div>
           
           <div id="compatSummary" class="compat-summary"></div>
@@ -204,8 +255,8 @@
           <article class="glass-panel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Bottleneck analysis</p>
-                <h2>Upgrade Advisor</h2>
+                <p class="eyebrow">Hardware Analysis</p>
+                <h2>Bottleneck Check</h2>
               </div>
             </div>
             <div id="upgradeList" class="upgrade-list"></div>
@@ -214,15 +265,15 @@
           <article class="glass-panel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Plain-language engine</p>
-                <h2>AI Explanation</h2>
+                <p class="eyebrow">Tactical Support</p>
+                <h2>AI Advisor</h2>
               </div>
             </div>
             <div class="question-grid">
-              <button class="question-chip" data-question="Why is my laptop slow?">Why is my laptop slow?</button>
-              <button class="question-chip" data-question="Why is my game lagging?">Why is my game lagging?</button>
-              <button class="question-chip" data-question="Why is my SSD faster?">Why is my SSD faster?</button>
-              <button class="question-chip" data-question="What should I upgrade first?">What should I upgrade first?</button>
+              <button class="question-chip" data-question="Why is my laptop slow?">Why is my rig slow?</button>
+              <button class="question-chip" data-question="Why is my game lagging?">Why are my frames dropping?</button>
+              <button class="question-chip" data-question="Why is my SSD faster?">HDD vs NVMe SSD?</button>
+              <button class="question-chip" data-question="What should I upgrade first?">Best upgrade path?</button>
             </div>
             <div id="aiResponse" class="ai-response"></div>
           </article>
@@ -231,58 +282,41 @@
         <section id="compare" class="content-section glass-panel">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">PC comparison tool</p>
-              <h2>Head-to-Head Analyzer</h2>
+              <p class="eyebrow">Versus Mode</p>
+              <h2>Head-to-Head Compare</h2>
             </div>
             <button id="compareButton" class="button secondary" type="button">
-              <i data-lucide="git-compare"></i>
-              <span>Compare</span>
+              <i data-lucide="swords"></i>
+              <span>FIGHT!</span>
             </button>
           </div>
           <div class="compare-grid">
             <div>
               <label for="compareA" class="compare-label">PC A Configuration</label>
-              <textarea id="compareA" class="compare-box" spellcheck="false"></textarea>
+              <textarea id="compareA" class="compare-box" spellcheck="false" placeholder="Paste hardware specifications for System A..."></textarea>
             </div>
             <div>
               <label for="compareB" class="compare-label">PC B Configuration</label>
-              <textarea id="compareB" class="compare-box" spellcheck="false"></textarea>
+              <textarea id="compareB" class="compare-box" spellcheck="false" placeholder="Paste hardware specifications for System B..."></textarea>
             </div>
           </div>
           <div id="compareResults" class="compare-results"></div>
         </section>
 
-        <footer class="site-footer" style="text-align: center; padding: 3rem 0 2rem; opacity: 0.8; display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 3rem;">
-          <small style="letter-spacing: 0.05em;">Hardware Conflict Analyzer Pro v1.0</small>
-          <div class="footer-links" style="display: flex; justify-content: center; gap: 1.5rem; font-size: 0.85rem;">
-            <a href="./sitemap.xml" style="color: var(--primary, #007bff); text-decoration: none; opacity: 0.75; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.75">Sitemap</a>
-            <a href="./robots.txt" style="color: var(--primary, #007bff); text-decoration: none; opacity: 0.75; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.75">Robots</a>
+        <footer class="site-footer">
+          <small class="footer-version">HARDWARE CONFLICT ANALYZER PRO v1.0</small>
+          <div class="footer-links">
+            <a href="#privacy">Privacy</a>
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="#license">License</a>
+            <a href="#contact">Contact</a>
           </div>
         </footer>
       </main>
     </div>
 
-    <a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top" style="position: fixed; bottom: 24px; right: 24px; background: rgba(13, 20, 38, 0.85); color: #fff; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); width: 44px; height: 44px; display: none; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; z-index: 1000; box-shadow: 0 8px 32px rgba(0,0,0,0.4); transition: transform 0.2s, background 0.2s;">
-      <i data-lucide="arrow-up" style="width: 20px; height: 20px;"></i>
+    <a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top">
+      <i data-lucide="chevron-up"></i>
     </a>
-
-    <script>
-      history.scrollRestoration = "manual";
-      
-      // Smart Back to Top Visibility Control
-      window.addEventListener('scroll', () => {
-        const btn = document.getElementById('backToTop');
-        if (window.scrollY > 400) {
-          btn.style.display = 'flex';
-        } else {
-          btn.style.display = 'none';
-        }
-      });
-
-      // Simple click hover effects for the back-to-top bubble
-      const topBtn = document.getElementById('backToTop');
-      topBtn.addEventListener('mouseenter', () => topBtn.style.transform = 'translateY(-2px)');
-      topBtn.addEventListener('mouseleave', () => topBtn.style.transform = 'translateY(0)');
-    </script>
   </body>
 </html>
