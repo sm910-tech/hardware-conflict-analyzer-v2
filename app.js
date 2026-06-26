@@ -3,7 +3,6 @@ import { calculateScores, scoreTone } from "./modules/scoring/scoreEngine.js";
 import { analyzeGameCompatibility, summarizeGameCompatibility } from "./modules/gamechecker/gameChecker.js";
 import { analyzeUpgrades, explainQuestion } from "./modules/upgrades/upgradeAdvisor.js";
 
-// Requirement 15: Freeze text constant states to defend against execution mutations
 const sampleText = `Processor Intel i3-6006U
 Graphics Intel HD Graphics 520
 Memory 8GB DDR3 RAM
@@ -14,11 +13,8 @@ GPU RTX 4070
 RAM 32GB DDR5
 Storage 1TB NVMe Gen4 SSD`;
 
-Object.freeze(sampleText);
-Object.freeze(comparisonText);
-
 // Shared Global App State Definition Engine
-const dom = {};
+const dom = Object.create(null);
 const state = {
   file: null,
   fileUrl: null,
@@ -27,10 +23,11 @@ const state = {
   scoring: null,
   games: [],
   upgrades: null,
-  ocrRunning: false,         // Requirement 1: Guard flag vector
-  analyzing: false,          // Requirement 2: Guard flag vector
-  currentOcrId: 0,           // Requirement 3: Race condition tracking identifier
-  particleAnimationId: null  // Requirement 11: Frame management hook reference
+  searchCounts: null,         // Local storage memory cache
+  ocrRunning: false,          // OCR concurrency lock
+  analyzing: false,           // Analysis lock
+  currentOcrId: 0,            // Race condition tracking ID
+  particleAnimationId: null   // Animation loop hook reference
 };
 
 // CDN dependency fallback detection
@@ -95,7 +92,7 @@ async function resizeImageIfNeeded(file) {
         });
       });
     } catch (error) {
-      console.error("Bitmap resizing error encountered:", error); // Requirement 14
+      console.error("Bitmap resizing error encountered:", error);
       return file;
     }
   }
@@ -124,13 +121,13 @@ async function resizeImageIfNeeded(file) {
         }
       };
       img.onerror = (err) => {
-        console.error("Image asset mapping parsing failed:", err); // Requirement 14
+        console.error("Image asset mapping parsing failed:", err);
         resolve(file);
       };
       img.src = e.target.result;
     };
     reader.onerror = (err) => {
-      console.error("FileReader process mapping aborted:", err); // Requirement 14
+      console.error("FileReader process mapping aborted:", err);
       resolve(file);
     };
     reader.readAsDataURL(file);
@@ -150,7 +147,7 @@ function showError(message) {
   }
 }
 
-// Cache reference arrays onto the DOM configuration context
+// Cache reference arrays completely upfront
 function queryDom() {
   [
     "startupOverlay", "particleCanvas", "dropZone", "fileInput", "scanFrame",
@@ -163,9 +160,9 @@ function queryDom() {
     dom[id] = document.getElementById(id);
   });
 
-  // Requirement 6: Cache critical document layout arrays completely upfront during system query pass
   dom.navLinks = document.querySelectorAll(".nav-link");
   dom.questionChips = document.querySelectorAll(".question-chip");
+  dom.mobileUploadButtons = document.querySelectorAll(".mobile-upload-btn"); // Cached mobile controls
 }
 
 function clearError() {
@@ -198,12 +195,14 @@ function updateAnalyzeButtonState() {
 }
 
 function getSearchCounts() {
+  if (state.searchCounts) return state.searchCounts;
   try {
-    return JSON.parse(localStorage.getItem("hca_game_searches")) || {};
+    state.searchCounts = JSON.parse(localStorage.getItem("hca_game_searches")) || {};
   } catch (error) {
-    console.error("Failed to recover user storage map data:", error); // Requirement 14
-    return {};
+    console.error("Failed to recover user storage map data:", error);
+    state.searchCounts = {};
   }
+  return state.searchCounts;
 }
 
 function incrementSearchCount(gameName) {
@@ -212,7 +211,7 @@ function incrementSearchCount(gameName) {
     const counts = getSearchCounts();
     counts[gameName] = (counts[gameName] || 0) + 1;
     
-    // Requirement 7: Prune database tracking states intelligently if allocations exceed memory caps
+    // Prune cache keys dynamically if they cross capacity limit
     const allocatedKeys = Object.keys(counts);
     if (allocatedKeys.length > 100) {
       let minimumKeyTarget = allocatedKeys[0];
@@ -226,7 +225,7 @@ function incrementSearchCount(gameName) {
     
     localStorage.setItem("hca_game_searches", JSON.stringify(counts));
   } catch (error) {
-    console.error("Failed to write search telemetry database profile:", error); // Requirement 14
+    console.error("Failed to write search telemetry database profile:", error);
   }
 }
 
@@ -254,7 +253,6 @@ function statusClass(status) {
   return `status-${status.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
-// Color matching function for UI elements
 function ringColor(score) {
   if (score >= 85) return "var(--success)";
   if (score >= 68) return "var(--cyan)";
@@ -295,7 +293,7 @@ function computeState(text) {
     state.games = analyzeGameCompatibility(state.hardware, state.scoring);
     state.upgrades = analyzeUpgrades(state.hardware, state.scoring);
 
-    // Requirement 12: Index search string values inside structural data sets to speed up typing loops
+    // Cache structural search strings
     if (Array.isArray(state.games)) {
       state.games.forEach((game) => {
         game.searchString = `${game.name} ${game.genre}`.toLowerCase();
@@ -307,7 +305,7 @@ function computeState(text) {
     }
     return true;
   } catch (error) {
-    console.error("Critical error building system hardware metric calculation paths:", error); // Requirement 14
+    console.error("Critical error building system hardware metric calculation paths:", error);
     state.hardware = null;
     state.scoring = null;
     state.games = [];
@@ -486,14 +484,14 @@ function drawRadar() {
   ctx.restore();
 }
 
-function renderGames() {
-  const games = Array.isArray(state.games) ? state.games : [];
-  const query = dom.gameSearch?.value.trim().toLowerCase() || "";
-  
-  // Requirement 12: Uses structural search strings instead of re-concatenating on each search key
-  const filtered = games.filter((game) => game.searchString?.includes(query));
-  const summary = summarizeGameCompatibility(filtered.length ? filtered : games);
+/* --- Deconstructed Game Management View Pipeline Module --- */
 
+function filterGames(games, query) {
+  return games.filter((game) => game.searchString?.includes(query));
+}
+
+function renderSummary(filtered, games) {
+  const summary = summarizeGameCompatibility(filtered.length ? filtered : games);
   dom.compatSummary.innerHTML = [
     ["Recommended", summary.recommended], ["Can Run", summary.runnable],
     ["Limited", summary.limited], ["Cannot Run", summary.cannot]
@@ -503,45 +501,47 @@ function renderGames() {
       <span>${label}</span>
     </div>
   `).join("");
+}
 
-  if (dom.popularGames) {
-    if (query.length > 0) {
-      dom.popularGames.innerHTML = "";
-      dom.popularGames.style.display = "none";
-    } else {
-      dom.popularGames.style.display = "grid";
-      const counts = getSearchCounts();
-      
-      const sortedByPopularity = [...games].sort((a, b) => {
-        const countA = counts[a.name] || 0;
-        const countB = counts[b.name] || 0;
-        if (countB !== countA) return countB - countA;
-        return a.name.localeCompare(b.name);
-      });
-
-      const popularTitles = sortedByPopularity.slice(0, 5);
-
-      // Requirement 5: Cleaned up long inline styles into semantic class designations
-      dom.popularGames.innerHTML = `
-        <div class="popular-showcase-header">
-          <p class="eyebrow">Telemetry Metrics Tracking</p>
-          <h3>Most Searched Games</h3>
-        </div>
-        ${popularTitles.map((game) => `
-          <div class="popular-showcase-card status-${game.status?.toLowerCase().replace(/\s+/g, "-")}" data-game-name="${escapeHtml(game.name)}">
-            <div class="popular-card-body">
-              <h4 class="popular-card-title">${escapeHtml(game.name)}</h4>
-              <small class="popular-card-fps">Est: ${Number(game.estimatedFps) || 0} FPS</small>
-            </div>
-            <span class="status-badge ${statusClass(game.status || "Unknown")}">${escapeHtml(game.status)}</span>
-          </div>
-        `).join("")}
-      `;
-    }
+function renderPopularGames(games, query) {
+  if (!dom.popularGames) return;
+  if (query.length > 0) {
+    dom.popularGames.innerHTML = "";
+    dom.popularGames.style.display = "none";
+    return;
   }
+  
+  dom.popularGames.style.display = "grid";
+  const counts = getSearchCounts();
+  
+  const sortedByPopularity = [...games].sort((a, b) => {
+    const countA = counts[a.name] || 0;
+    const countB = counts[b.name] || 0;
+    if (countB !== countA) return countB - countA;
+    return a.name.localeCompare(b.name);
+  });
 
-  // Requirement 13: Slices elements down to render small, high-performance DOM windows
-  const virtualizedMatches = filtered.slice(0, 30);
+  const popularTitles = sortedByPopularity.slice(0, 5);
+
+  dom.popularGames.innerHTML = `
+    <div class="popular-showcase-header">
+      <p class="eyebrow">Telemetry Metrics Tracking</p>
+      <h3>Most Searched Games</h3>
+    </div>
+    ${popularTitles.map((game) => `
+      <div class="popular-showcase-card status-${game.status?.toLowerCase().replace(/\s+/g, "-")}" data-game-name="${escapeHtml(game.name)}">
+        <div class="popular-card-body">
+          <h4 class="popular-card-title">${escapeHtml(game.name)}</h4>
+          <small class="popular-card-fps">Est: ${Number(game.estimatedFps) || 0} FPS</small>
+        </div>
+        <span class="status-badge ${statusClass(game.status || "Unknown")}">${escapeHtml(game.status)}</span>
+      </div>
+    `).join("")}
+  `;
+}
+
+function renderGameCards(filtered) {
+  const virtualizedMatches = filtered.slice(0, 30); // Virtualization window limit
 
   dom.gameList.innerHTML = virtualizedMatches.map((game, index) => `
     <article class="game-card" data-game-name="${escapeHtml(game.name)}" style="animation-delay:${Math.min(index * 18, 240)}ms; cursor: pointer;">
@@ -562,7 +562,16 @@ function renderGames() {
       <p class="bottleneck-line">${escapeHtml(game.upgrade || "No upgrade guidance available.")}</p>
     </article>
   `).join("");
+}
 
+function renderGames() {
+  const games = Array.isArray(state.games) ? state.games : [];
+  const query = dom.gameSearch?.value.trim().toLowerCase() || "";
+  
+  const filtered = filterGames(games, query);
+  renderSummary(filtered, games);
+  renderPopularGames(games, query);
+  renderGameCards(filtered);
   renderSearchSuggestions(query, games);
 }
 
@@ -586,9 +595,21 @@ function renderSearchSuggestions(query, totalGames) {
   if (!suggestionsBox) {
     suggestionsBox = document.createElement("div");
     suggestionsBox.id = "gameSearchSuggestions";
-    suggestionsBox.className = "search-suggestions-dropdown"; // Requirement 5: Modular CSS hook target class
+    suggestionsBox.className = "search-suggestions-dropdown"; // Modular CSS target
     dom.gameSearch.parentElement.classList.add("relative-position-container");
     dom.gameSearch.parentElement.appendChild(suggestionsBox);
+
+    // Event delegation pipeline pattern
+    suggestionsBox.addEventListener("click", (e) => {
+      const targetItem = e.target.closest(".suggestion-item");
+      if (targetItem) {
+        const selectedName = targetItem.dataset.gameName;
+        incrementSearchCount(selectedName);
+        dom.gameSearch.value = selectedName;
+        suggestionsBox.remove();
+        renderGames();
+      }
+    });
   }
 
   suggestionsBox.innerHTML = matches.map(game => `
@@ -596,17 +617,9 @@ function renderSearchSuggestions(query, totalGames) {
       ${escapeHtml(game.name)} <span class="suggestion-genre-aside">${escapeHtml(game.genre)}</span>
     </div>
   `).join("");
-
-  Array.from(suggestionsBox.children).forEach((el) => {
-    el.addEventListener("click", () => {
-      const selectedName = el.dataset.gameName;
-      incrementSearchCount(selectedName);
-      dom.gameSearch.value = selectedName;
-      suggestionsBox.remove();
-      renderGames();
-    });
-  });
 }
+
+/* --- End Game Management View Pipeline Module --- */
 
 function renderUpgrades() {
   const upgradeData = safeObject(state.upgrades, { upgrades: [] });
@@ -674,8 +687,7 @@ function renderComparison() {
 }
 
 async function analyzeCurrentText() {
-  // Requirement 2: Strict execution lock prevent users spam-clicking analysis pipeline
-  if (state.analyzing) return;
+  if (state.analyzing) return; // Analysis execution lock
   
   const text = dom.inputText.value.trim();
   if (!text) {
@@ -699,7 +711,7 @@ async function analyzeCurrentText() {
     renderAll();
     await delay(280);
   } catch (error) {
-    console.error("Analysis sequence loop unexpected block crash:", error); // Requirement 14
+    console.error("Analysis sequence loop unexpected block crash:", error);
     showError(`Analysis error: ${error.message}`);
   } finally {
     state.analyzing = false;
@@ -709,8 +721,7 @@ async function analyzeCurrentText() {
 
 async function handleOcr() {
   if (!state.file) return;
-  // Requirement 1: Guard flag ensures concurrent OCR threads never fire together
-  if (state.ocrRunning) return;
+  if (state.ocrRunning) return; // OCR concurrency lock
 
   const validation = validateImageFile(state.file);
   if (!validation.valid) {
@@ -720,8 +731,7 @@ async function handleOcr() {
   clearError();
   
   state.ocrRunning = true;
-  // Requirement 3: Steps up token baseline count on new operations triggers
-  state.currentOcrId++;
+  state.currentOcrId++; // Race condition tracking token ID
   const activeOcrTokenId = state.currentOcrId;
 
   const processedFile = await resizeImageIfNeeded(state.file);
@@ -734,13 +744,11 @@ async function handleOcr() {
   dom.debugOutput.textContent = "";
 
   try {
-    // Requirement 9: Lazy-load massive OCR parsing assets directly at execution request boundary
-    const { runOcr } = await import("./modules/ocr/ocrEngine.js");
+    const { runOcr } = await import("./modules/ocr/ocrEngine.js"); // Lazy-load OCR engine
     
     const result = await runOcr(processedFile, {
       debug: dom.debugToggle.checked,
       onProgress(event) {
-        // Requirement 3: Discards execution tracking outputs if user shifted files mid-pass
         if (activeOcrTokenId !== state.currentOcrId) return;
         const progress = Math.max(4, Math.round((event.progress || 0) * 100));
         dom.ocrProgress.style.width = `${progress}%`;
@@ -761,7 +769,7 @@ async function handleOcr() {
     }
     await analyzeCurrentText();
   } catch (error) {
-    console.error("Critical OCR mapping operations failure:", error); // Requirement 14
+    console.error("Critical OCR mapping operations failure:", error);
     if (activeOcrTokenId === state.currentOcrId) {
       showError(`OCR failed: ${error.message}`);
       dom.debugOutput.hidden = false;
@@ -801,14 +809,13 @@ function handleFile(file) {
 
   dom.previewImage.onload = () => {
     dom.scanFrame.classList.add("has-image");
-    // Requirement 4: Revoke object allocations as soon as the element completes memory layout configuration load
     if (state.fileUrl) {
-      URL.revokeObjectURL(state.fileUrl);
+      URL.revokeObjectURL(state.fileUrl); // Clean up temporary object URLs immediately
     }
   };
 
   dom.previewImage.onerror = (err) => {
-    console.error("Blob presentation mapping threw layout fault exceptions:", err); // Requirement 14
+    console.error("Blob presentation mapping threw layout fault exceptions:", err);
     if (state.fileUrl) URL.revokeObjectURL(state.fileUrl);
     state.fileUrl = null;
     state.file = null;
@@ -828,11 +835,10 @@ async function handleReport() {
     }
     clearError();
 
-    // Requirement 8: Lazy-load heavy report dependencies dynamically at generation execution time
-    const { generatePdfReport } = await import("./modules/reports/pdfReport.js");
+    const { generatePdfReport } = await import("./modules/reports/pdfReport.js"); // Lazy-load PDF Report writer
     generatePdfReport(state);
   } catch (error) {
-    console.error("PDF engine initialization module loading dropped unhandled errors:", error); // Requirement 14
+    console.error("PDF engine initialization module loading dropped unhandled errors:", error);
     showError(`PDF report generation failed: ${error?.message || "unknown error"}`);
   }
 }
@@ -900,7 +906,6 @@ function bindEvents() {
   
   dom.compareButton.addEventListener("click", renderComparison);
 
-  // Requirement 6: Use cached DOM references instead of running repeated document queries
   dom.questionChips.forEach((button) => {
     button.addEventListener("click", () => renderAi(button.dataset.question));
   });
@@ -911,14 +916,75 @@ function bindEvents() {
       link.classList.add("active");
     });
   });
+
+  // Hotkey mapping layer modules
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement !== dom.gameSearch &&
+        document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') {
+      e.preventDefault();
+      if (dom.gameSearch) {
+        dom.gameSearch.focus();
+        dom.gameSearch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    if (e.ctrlKey && e.key.toLowerCase() === "o") {
+      e.preventDefault();
+      dom.sampleButton?.click();
+    }
+
+    if (e.ctrlKey && e.key === "Enter") {
+      if (dom.analyzeButton && !dom.analyzeButton.disabled) {
+        e.preventDefault();
+        dom.analyzeButton.click();
+      }
+    }
+  });
+
+  // Scroll event observer with optimization configurations
+  const bttButton = document.getElementById("backToTop");
+  if (bttButton) {
+    window.addEventListener("scroll", () => {
+      if (window.scrollY > 400) {
+        bttButton.style.display = "flex";
+      } else {
+        bttButton.style.display = "none";
+      }
+    }, { passive: true });
+  }
+
+  // Intercept hooks mapped to mobile triggers directly from cache window
+  if (dom.fileInput && dom.mobileUploadButtons.length > 0) {
+    dom.mobileUploadButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dom.fileInput.click();
+      });
+    });
+  }
+
+  // Unload event clean hooks execution module
+  window.addEventListener("beforeunload", () => {
+    if (state.particleAnimationId) {
+      cancelAnimationFrame(state.particleAnimationId);
+    }
+  });
 }
 
 function initParticles() {
   const canvas = dom.particleCanvas;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Prevent multiple double animation loop bugs
+  if (state.particleAnimationId) {
+    cancelAnimationFrame(state.particleAnimationId);
+  }
+
   const particles = [];
   
-  // Requirement 10: Dynamically scales background arrays up or down based on screen targets
+  // Calculate particle volume allocation matrices dynamically
   let totalParticles = 50;
   if (window.innerWidth <= 480) {
     totalParticles = 20;
@@ -941,105 +1007,83 @@ function initParticles() {
       particles.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        vx: (Math.random() - 0.5) * 0.22,
-        vy: (Math.random() - 0.5) * 0.22,
-        size: Math.random() * 1.8 + 0.4,
-        hue: Math.random() > 0.5 ? "102, 228, 255" : Math.random() > 0.5 ? "70, 240, 196" : "255, 209, 102"
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 1.5 + 0.5
       });
     }
   }
 
   function draw() {
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-    for (const particle of particles) {
-      particle.x += particle.vx;
-      particle.y += particle.vy;
-      if (particle.x < 0 || particle.x > window.innerWidth) particle.vx *= -1;
-      if (particle.y < 0 || particle.y > window.innerHeight) particle.vy *= -1;
-
+    ctx.fillStyle = "rgba(0, 240, 255, 0.25)";
+    
+    particles.forEach((p) => {
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${particle.hue}, 0.42)`;
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
-    }
 
-    for (let a = 0; a < particles.length; a += 1) {
-      for (let b = a + 1; b < particles.length; b += 1) {
-        const dx = particles[a].x - particles[b].x;
-        const dy = particles[a].y - particles[b].y;
-        const distance = Math.hypot(dx, dy);
-        if (distance < 115) {
-          ctx.beginPath();
-          ctx.moveTo(particles[a].x, particles[a].y);
-          ctx.lineTo(particles[b].x, particles[b].y);
-          ctx.strokeStyle = `rgba(185, 211, 255, ${0.08 * (1 - distance / 115)})`;
-          ctx.stroke();
-        }
-      }
-    }
+      p.x += p.vx;
+      p.y += p.vy;
 
-    state.particleAnimationId = window.requestAnimationFrame(draw);
+      if (p.x < 0 || p.x > window.innerWidth) p.vx *= -1;
+      if (p.y < 0 || p.y > window.innerHeight) p.vy *= -1;
+    });
+    
+    state.particleAnimationId = requestAnimationFrame(draw);
   }
 
-  // Requirement 11: Freezes loop tracking states if browser tabs hide or shift focus context
-  function handleVisibilityLifecycle() {
-    if (document.hidden) {
-      if (state.particleAnimationId) {
-        cancelAnimationFrame(state.particleAnimationId);
-        state.particleAnimationId = null;
-      }
-    } else {
-      if (!state.particleAnimationId) {
-        draw();
-      }
-    }
-  }
+  window.addEventListener("resize", debounce(() => {
+    resize();
+    seed();
+  }, 200));
 
   resize();
   seed();
   draw();
-
-  window.addEventListener("resize", () => {
-    resize();
-    seed();
-    drawRadar();
-  });
-
-  document.addEventListener("visibilitychange", handleVisibilityLifecycle);
 }
 
-function init() {
-  try {
-    queryDom();
+// Chained animation timers for system tracer logs rendering
+function runPremiumBootSequence() {
+  const bootLogs = document.querySelectorAll(".boot-log");
+  const bootReadyText = document.querySelector(".boot-log-ready");
+  const overlay = dom.startupOverlay;
+  
+  if (overlay && bootLogs.length > 0) {
+    let currentLogIndex = 0;
     
-    window.setTimeout(() => {
-      if (!validateCdnDependencies()) {
-        console.warn("Some backend structural CDN modules could not map accurately.");
+    function nextLog() {
+      bootLogs[currentLogIndex].classList.remove("active");
+      currentLogIndex++;
+      
+      if (currentLogIndex < bootLogs.length) {
+        bootLogs[currentLogIndex].classList.add("active");
+        setTimeout(nextLog, 1000); // Chained sequence mapping avoids hidden interval bugs
+      } else {
+        if (bootReadyText) bootReadyText.classList.add("active");
+        
+        setTimeout(() => {
+          overlay.style.opacity = "0";
+          overlay.style.transform = "scale(1.03)";
+          setTimeout(() => {
+            overlay.style.display = "none";
+          }, 500);
+        }, 800);
       }
-    }, 100);
+    }
     
-    dom.inputText.value = sampleText;
-    dom.compareA.value = sampleText;
-    dom.compareB.value = comparisonText;
-    
-    updateAnalyzeButtonState();
-    dom.reportButton.disabled = true;
-    
-    computeState(sampleText);
-    dom.reportButton.disabled = true;
-    renderAll();
-    bindEvents();
-    initParticles();
-    
-    window.setTimeout(() => {
-      if (dom.startupOverlay) {
-        dom.startupOverlay.classList.add("is-hidden");
-      }
-    }, 1450);
-  } catch (error) {
-    console.error("Critical system error mapped inside core boot step tracking trees:", error); // Requirement 14
+    setTimeout(nextLog, 1000);
   }
 }
 
-// Global initialization trigger loop
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.history && 'scrollRestoration' in window.history) {
+    window.history.scrollRestoration = 'manual';
+  }
+  
+  queryDom();
+  validateCdnDependencies();
+  bindEvents();
+  initParticles();
+  runPremiumBootSequence();
+});
