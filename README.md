@@ -1,126 +1,243 @@
-# Hardware Conflict Analyzer Pro 🚀
+# Hardware Conflict Analyzer Pro v2.0 🚀
 
-> Intelligent hardware analyzer with OCR detection, game compatibility checking, performance scoring, hardware comparison, and upgrade recommendations.
+> A modern browser-based hardware analysis suite featuring OCR-powered hardware detection, performance evaluation, game compatibility analysis, bottleneck detection, upgrade recommendations, and head-to-head PC comparison.
 
 ![Status](https://img.shields.io/badge/Status-Active-success)
 ![Platform](https://img.shields.io/badge/Platform-Web-blue)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6-yellow)
 ![Responsive](https://img.shields.io/badge/Responsive-Yes-brightgreen)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![License](https://img.shields.io/badge/License-Commercial-blue)
 
 ---
 
-## 🌐 Live Demo
+# 🌐 Live Demo
 
-👉 **Try the Live Web App:** [https://sm910-tech.github.io/hardware-conflict-analyzer/](https://sm910-tech.github.io/hardware-conflict-analyzer/)
+**Website**
 
----
-
-## 📷 Screenshots
-
-*(Important: Replace these paths with actual screenshots of your running application to maximize your repository's professional appeal.)*
-
-| Home Page | OCR Detection |
-|:---:|:---:|
-| ![Home Page Dashboard](./assets/home.png) | ![OCR Component Scanning](./assets/ocr.png) |
-| **Game Compatibility** | **Comparison Tool** |
-| ![Game Compatibility Check](./assets/game-compat.png) | ![Hardware Comparison](./assets/compare.png) |
-| **Upgrade Advisor** | |
-| ![Upgrade Advisor Tool](./assets/upgrade.png) | |
+https://sm910-tech.github.io/hardware-conflict-analyzer-v2/
 
 ---
 
-## 🔒 Privacy First
+# 📸 Preview
 
-* **100% Local Processing:** All OCR scanning and hardware analysis happens entirely inside your browser.
-* **No Server Uploads:** Absolutely zero hardware data, screenshots, or personal information are uploaded to external servers. Your data stays on your machine.
-
----
-
-## ⚡ Performance
-
-* ⚡ Runs entirely in the browser
-* ⚡ No backend server required
-* ⚡ Fast client-side OCR processing
-* ⚡ Lightweight, optimized hardware database
+![Hardware Conflict Analyzer Pro](preview.png)
 
 ---
 
-## 📊 By The Numbers
+# ✨ Features
 
-* **300+** CPUs Supported
-* **300+** GPUs & iGPUs Supported
-* **60+** Popular Games Analyzed
-* **100%** Client-Side Processing
-* **SEO Optimized** & Google Indexed
-
----
-
-## ✨ Core Features
-
-* **🔍 OCR Hardware Detection:** Detect hardware directly from screenshots using intelligent image preprocessing, automated text correction, and confidence scoring via Tesseract.js.
-* **💻 Massive Hardware Database:** Supports modern and legacy architectures across CPUs, GPUs, RAM, and Storage.
-* **🎮 Game Compatibility Engine:** Instantly checks minimum and recommended requirements, RAM, and storage limits for demanding PC titles (e.g., *Cyberpunk 2077*, *Black Myth: Wukong*, *CS2*).
-* **📊 Performance Scoring:** Generates accurate metric ratings for Overall, Gaming, Productivity, and AI workloads.
-* **⚙️ Upgrade Advisor:** Automatically identifies system bottlenecks and recommends specific CPU, GPU, RAM, or storage upgrades.
-* **⚔️ Hardware Comparison:** Compare two distinct PC configurations side-by-side to determine which offers superior gaming or productivity performance.
-* **📄 PDF Reports:** Generate and download comprehensive hardware audits, performance scores, and compatibility summaries.
+| Feature | Status |
+|---------|:------:|
+| OCR Hardware Detection | ✅ |
+| CPU Detection | ✅ |
+| GPU Detection | ✅ |
+| RAM Detection | ✅ |
+| Storage Detection | ✅ |
+| Performance Scoring | ✅ |
+| Game Compatibility | ✅ |
+| Hardware Comparison | ✅ |
+| Upgrade Advisor | ✅ |
+| PDF Report Export | ✅ |
+| Responsive Design | ✅ |
+| Progressive Web App (PWA) | ✅ |
 
 ---
 
-## 🗺️ Roadmap
+# 🔍 What It Does
 
-**Completed**
-* ✅ OCR Hardware Detection
-* ✅ Core Hardware Database Built
-* ✅ Game Compatibility System
-* ✅ Responsive Web UI
-* ✅ PDF Report Generation
+Hardware Conflict Analyzer Pro helps users analyze their computer hardware directly from screenshots or manually entered specifications.
 
-**Planned / In Progress**
-* 🚧 Live FPS Estimator Engine
-* 🚧 External API Integration
-* 🚧 Hardware Benchmark Charts
-* 🚧 Expanded Library of 500+ Games
-* 🚧 Saved User Configurations
+The application automatically:
 
----
+- Detects CPU, GPU, RAM and Storage
+- Performs OCR using Tesseract.js
+- Generates hardware confidence scores
+- Estimates gaming performance
+- Detects hardware bottlenecks
+- Suggests upgrade paths
+- Compares two complete PC configurations
+- Exports professional PDF reports
 
-## 🛠️ Technologies Used
+Everything runs directly inside the browser.
 
-**Frontend Core**
-* HTML5 / CSS3
-* JavaScript (ES6 Modules)
-
-**Libraries & Engine**
-* **Tesseract.js** (Optical Character Recognition Engine)
-* **jsPDF** (Client-side PDF Generation)
-* **Lucide Icons** (Scalable UI Iconography)
-
-**Deployment & SEO**
-* **GitHub Pages** (Hosting)
-* **Google Search Console** (Indexing)
-* **Schema.org** (Structured Data)
-* **Robots.txt & Sitemap.xml**
+No installation required.
 
 ---
 
-## 📂 Project Structure
+# 🔒 Privacy First
 
-```text
-Hardware-Conflict-Analyzer/
-├── index.html
-├── styles.css
-├── app.js
-├── manifest.json
-├── robots.txt
-├── sitemap.xml
-├── database/
+- 100% Browser Processing
+- No backend server
+- No account required
+- No hardware data stored
+- OCR processing performed locally whenever supported
+
+---
+
+# ⚡ Performance
+
+- Fast OCR Engine
+- Lightweight Hardware Database
+- Responsive Interface
+- Mobile Friendly
+- Works on modern browsers
+
+---
+
+# 📊 Database
+
+Current project includes:
+
+- 300+ CPUs
+- 300+ GPUs & iGPUs
+- 60+ Popular Games
+- RAM Database
+- Storage Database
+
+---
+
+# 🎮 Main Modules
+
+## OCR Detection
+
+Detect hardware directly from screenshots.
+
+## Hardware Analysis
+
+Analyze CPU, GPU, RAM and Storage.
+
+## Performance Radar
+
+Generate Gaming, Productivity and Overall performance scores.
+
+## Game Compatibility
+
+Check whether popular games can run on the detected hardware.
+
+## Upgrade Advisor
+
+Receive upgrade recommendations based on detected bottlenecks.
+
+## Head-to-Head Compare
+
+Compare two complete PC configurations side-by-side.
+
+## PDF Export
+
+Generate downloadable hardware reports.
+
+---
+
+# 🛠 Technologies Used
+
+### Frontend
+
+- HTML5
+- CSS3
+- JavaScript (ES6)
+
+### Libraries
+
+- Tesseract.js
+- jsPDF
+- Lucide Icons
+
+### Deployment
+
+- GitHub Pages
+
+### SEO
+
+- Schema.org
+- Sitemap.xml
+- Robots.txt
+
+---
+
+# 📁 Project Structure
+
+```
+hardware-conflict-analyzer-v2/
+
+│── index.html
+│── styles.css
+│── app.js
+│── preview.png
+│── manifest.json
+│── robots.txt
+│── sitemap.xml
+│── about.html
+│── contact.html
+│── privacy.html
+│── terms.html
+│── license.html
+│── database/
 │   ├── cpus.js
 │   ├── gpus.js
 │   ├── ram.js
 │   ├── storage.js
-│   └── games.js          
-└── ocr/
-    ├── ocr.js            
-    └── ocrCorrections.js
+│   └── games.js
+```
+
+---
+
+# 📈 Roadmap
+
+### Completed
+
+- OCR Detection
+- Hardware Database
+- Game Compatibility
+- PDF Export
+- Responsive UI
+- Hardware Comparison
+- Upgrade Advisor
+
+### Future Plans
+
+- Larger Hardware Database
+- More Games
+- Live Benchmark Charts
+- FPS Estimator
+- Cloud Sync
+- AI Recommendations
+
+---
+
+# 📜 License
+
+This project is distributed under a **Commercial License**.
+
+See:
+
+license.html
+
+---
+
+# 📬 Contact
+
+Business Inquiries
+
+- Software Licensing
+- Commercial Purchase
+- Source Code Purchase
+- Feature Requests
+- Bug Reports
+
+Website
+
+https://sm910-tech.github.io/hardware-conflict-analyzer-v2/
+
+GitHub
+
+https://github.com/SM910-Tech/hardware-conflict-analyzer-v2
+
+---
+
+# ⭐ Support
+
+If you find this project useful, consider starring the repository on GitHub.
+
+---
+
+© 2026 SM910-Tech | Hardware Conflict Analyzer Pro
