@@ -1446,30 +1446,22 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
-@media (max-width: 680px) {
-
-  ...
-
-}
-
-/* Paste here */
-
 /* ===== Popular Games ===== */
 
+.popular-games{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:14px;
+    margin-bottom:22px;
+}
+
 .popular-showcase-header{
-    margin-bottom:18px;
+    grid-column:1/-1;
+    margin-bottom:8px;
 }
 
 .popular-showcase-header h3{
-    margin-top:6px;
-    font-size:1.2rem;
-}
-
-#popularGames{
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-    gap:14px;
-    margin-bottom:20px;
+    margin:6px 0 0;
 }
 
 .popular-showcase-card{
@@ -1477,7 +1469,7 @@ h3 {
     justify-content:space-between;
     align-items:center;
     padding:16px;
-    border-radius:14px;
+    border-radius:12px;
     border:1px solid rgba(255,255,255,.08);
     background:rgba(255,255,255,.05);
     transition:.25s;
