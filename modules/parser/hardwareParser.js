@@ -29,15 +29,20 @@ const OCR_REPLACEMENTS = [
 
 const LOW_CONFIDENCE = 0.74;
 
+// Global reuse allocation blocks for the zero-memory-leak Levenshtein tracking engine
+let LEV_ROW_PREV = new Int32Array(128);
+let LEV_ROW_CURR = new Int32Array(128);
+
 export function normalizeText(value = "") {
+  if (!value) return "";
   let text = String(value)
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\r/g, "\n");
 
-  for (const [pattern, replacement] of OCR_REPLACEMENTS) {
-    text = text.replace(pattern, replacement);
+  for (let i = 0; i < OCR_REPLACEMENTS.length; i++) {
+    text = text.replace(OCR_REPLACEMENTS[i][0], OCR_REPLACEMENTS[i][1]);
   }
 
   return text
@@ -64,55 +69,70 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function levenshtein(a, b) {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-
-  const previous = new Array(b.length + 1);
-  const current = new Array(b.length + 1);
-
-  for (let j = 0; j <= b.length; j += 1) previous[j] = j;
-
-  for (let i = 1; i <= a.length; i += 1) {
-    current[0] = i;
-    for (let j = 1; j <= b.length; j += 1) {
-      const substitution = previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1);
-      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, substitution);
-    }
-    for (let j = 0; j <= b.length; j += 1) previous[j] = current[j];
+/**
+ * Highly Optimized Zero-Allocation Windowed Levenshtein Engine
+ * Computes string difference across native string indexes without creating garbage collection slices.
+ */
+function computeWindowLevenshtein(source, start, size, needle) {
+  const needleLen = needle.length;
+  
+  // Dynamically scale underlying buffer tracking if long hardware variants are discovered
+  if (LEV_ROW_PREV.length <= needleLen) {
+    LEV_ROW_PREV = new Int32Array(needleLen + 16);
+    LEV_ROW_CURR = new Int32Array(needleLen + 16);
   }
 
-  return previous[b.length];
+  for (let j = 0; j <= needleLen; j++) {
+    LEV_ROW_PREV[j] = j;
+  }
+
+  for (let i = 1; i <= size; i++) {
+    LEV_ROW_CURR[0] = i;
+    const sourceCharCode = source.charCodeAt(start + i - 1);
+    
+    for (let j = 1; j <= needleLen; j++) {
+      const substitutionCost = LEV_ROW_PREV[j - 1] + (sourceCharCode === needle.charCodeAt(j - 1) ? 0 : 1);
+      LEV_ROW_CURR[j] = Math.min(LEV_ROW_PREV[j] + 1, LEV_ROW_CURR[j - 1] + 1, substitutionCost);
+    }
+    
+    // Quick structural pointer flip avoids array allocation cycles
+    const tempBuffer = LEV_ROW_PREV;
+    LEV_ROW_PREV = LEV_ROW_CURR;
+    LEV_ROW_CURR = tempBuffer;
+  }
+
+  return LEV_ROW_PREV[needleLen];
 }
 
-function similarity(a, b) {
-  const max = Math.max(a.length, b.length);
-  if (!max) return 1;
-  return 1 - levenshtein(a, b) / max;
-}
+function bestSubstringSimilarity(sourceCompact, needleCompact) {
+  if (!sourceCompact || !needleCompact || needleCompact.length < 5) return 0;
+  
+  const needleLen = needleCompact.length;
+  const minWidth = Math.max(5, needleLen - 2);
+  const maxWidth = Math.min(sourceCompact.length, needleLen + 2);
+  let bestScore = 0;
 
-function bestSubstringSimilarity(source, needle) {
-  if (!source || !needle || needle.length < 5) return 0;
-  const width = needle.length;
-  let best = 0;
-  const minWidth = Math.max(5, width - 2);
-  const maxWidth = Math.min(source.length, width + 2);
+  for (let size = minWidth; size <= maxWidth; size++) {
+    const maxStart = sourceCompact.length - size;
+    const denominator = Math.max(size, needleLen);
+    if (!denominator) continue;
 
-  for (let size = minWidth; size <= maxWidth; size += 1) {
-    for (let start = 0; start <= source.length - size; start += 1) {
-      const score = similarity(source.slice(start, start + size), needle);
-      if (score > best) best = score;
-      if (best >= 0.99) return best;
+    for (let start = 0; start <= maxStart; start++) {
+      const distance = computeWindowLevenshtein(sourceCompact, start, size, needleCompact);
+      const score = 1 - distance / denominator;
+      
+      if (score > bestScore) bestScore = score;
+      if (bestScore >= 0.99) return bestScore; // Immediate structural shortcut
     }
   }
 
-  return best;
+  return bestScore;
 }
 
 function hasWordPhrase(source, phrase) {
   const normalizedPhrase = normalizeText(phrase);
   if (!normalizedPhrase) return false;
+  
   const phraseTokens = words(normalizedPhrase);
   if (phraseTokens.length === 1 && phraseTokens[0].length < 4) {
     const boundary = new RegExp(`(^|[^a-z0-9])${escapeRegExp(phraseTokens[0])}([^a-z0-9]|$)`);
@@ -128,13 +148,17 @@ function matchDatabase(database, sourceText, options = {}) {
     component = "hardware",
     allowShortAliases = false
   } = options;
+  
   const normalized = normalizeText(sourceText);
   const sourceCompact = compact(sourceText);
   const candidates = [];
 
-  for (const item of database) {
+  for (let i = 0; i < database.length; i++) {
+    const item = database[i];
     const aliases = [item.name, ...(item.aliases || [])];
-    for (const alias of aliases) {
+    
+    for (let j = 0; j < aliases.length; j++) {
+      const alias = aliases[j];
       const aliasCompact = compact(alias);
       if (!aliasCompact) continue;
 
@@ -148,9 +172,20 @@ function matchDatabase(database, sourceText, options = {}) {
         score = Math.min(1, 0.94 + exactBoost);
         strategy = "exact phrase";
       } else if (aliasCompact.length >= 6) {
-        const fuzzy = bestSubstringSimilarity(sourceCompact, aliasCompact);
-        score = fuzzy * 0.96;
-        strategy = "fuzzy compact";
+        // Fast filtering pass: If strings share completely zero structural characters, avoid fuzzy operations entirely
+        let characterOverlap = false;
+        for (let charIdx = 0; charIdx < aliasCompact.length; charIdx++) {
+          if (sourceCompact.includes(aliasCompact[charIdx])) {
+            characterOverlap = true;
+            break;
+          }
+        }
+        
+        if (characterOverlap) {
+          const fuzzy = bestSubstringSimilarity(sourceCompact, aliasCompact);
+          score = fuzzy * 0.96;
+          strategy = "fuzzy compact";
+        }
       }
 
       if (score > 0) {
@@ -166,6 +201,11 @@ function matchDatabase(database, sourceText, options = {}) {
     }
   }
 
+  if (candidates.length === 0) {
+    return { item: null, confidence: 0, matched: "", strategy: "unknown", component, alternatives: [] };
+  }
+
+  // Optimized sorting pass
   candidates.sort((a, b) => {
     if (b.rawScore !== a.rawScore) return b.rawScore - a.rawScore;
     const lenA = compact(a.matched).length;
@@ -175,9 +215,10 @@ function matchDatabase(database, sourceText, options = {}) {
     if (b.strategy === "exact phrase" && a.strategy !== "exact phrase") return 1;
     return b.matched.length - a.matched.length;
   });
+
   const best = candidates[0];
 
-  if (!best || best.rawScore < threshold) {
+  if (best.rawScore < threshold) {
     return {
       item: null,
       confidence: 0,
@@ -188,8 +229,16 @@ function matchDatabase(database, sourceText, options = {}) {
     };
   }
 
-  const second = candidates.find((candidate) => candidate.item.id !== best.item.id);
-  if (second && best.rawScore - second.rawScore < 0.035 && best.rawScore < 0.94) {
+  // Find dynamic ambiguity overlaps
+  let second = null;
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].item.id !== best.item.id) {
+      second = candidates[i];
+      break;
+    }
+  }
+
+  if (second && (best.rawScore - second.rawScore < 0.035) && best.rawScore < 0.94) {
     return {
       item: null,
       confidence: Math.round(best.rawScore * 100),
@@ -219,6 +268,7 @@ function extractRamCapacity(sourceText) {
   const ramContext = plausible.find((value) => {
     const pattern = new RegExp(`\\b${escapeRegExp(String(value))}\\s*(?:gb|g)\\b`);
     const index = normalized.search(pattern);
+    if (index === -1) return false;
     const slice = normalized.slice(Math.max(0, index - 20), index + 35);
     return /ram|memory|ddr|lpddr/.test(slice);
   });
@@ -239,6 +289,7 @@ function extractStorageCapacity(sourceText) {
     const gbLabel = value >= 1024 && value % 1024 === 0 ? `${value / 1024}tb` : `${value}gb`;
     const spacedLabel = gbLabel.replace(/(tb|gb)$/, " $1");
     const index = normalized.indexOf(spacedLabel);
+    if (index === -1) return false;
     const slice = normalized.slice(Math.max(0, index - 24), index + 42);
     return /ssd|hdd|nvme|emmc|storage|drive|disk|sata|pcie/.test(slice);
   });
@@ -285,10 +336,6 @@ function classifyRam(sourceText) {
       strategy: "ambiguous ram frequency",
       name: capacityGb ? `${capacityGb}GB RAM (Type Unknown)` : "Unknown Hardware"
     };
-  }
-
-  if (match.item?.id === "ddr4" && !explicitDdr4 && /\b(2400mhz|2666mhz|3200mhz)\b/.test(normalized) && /\bddr\b/i.test(normalized)) {
-    // keep DDR4 when DDR is explicit and frequency matches DDR4 range
   }
 
   const confidence = match.item ? Math.min(100, match.confidence + (capacityGb ? 4 : 0)) : 0;
@@ -355,6 +402,7 @@ export function parseHardware(sourceText = "") {
   const cpuMatch = signals.hasCpuSignal
     ? matchDatabase(CPU_DATABASE, cleanedText, { threshold: 0.75, component: "cpu" })
     : { item: null, confidence: 0, matched: "", strategy: "missing signal", alternatives: [] };
+    
   const gpuMatch = signals.hasGpuSignal
     ? matchDatabase(GPU_DATABASE, cleanedText, { threshold: 0.76, component: "gpu" })
     : { item: null, confidence: 0, matched: "", strategy: "missing signal", alternatives: [] };
@@ -371,7 +419,11 @@ export function parseHardware(sourceText = "") {
     storage: storage.id === "unknown-storage" ? 0 : storage.confidence
   };
 
-  const detectedCount = [cpu, gpu, ram, storage].filter((item) => item.name !== "Unknown Hardware").length;
+  const detectedCount = (cpu.id !== "unknown-cpu" ? 1 : 0) + 
+                        (gpu.id !== "unknown-gpu" ? 1 : 0) + 
+                        (ram.id !== "unknown-ram" ? 1 : 0) + 
+                        (storage.id !== "unknown-storage" ? 1 : 0);
+                        
   const totalComponents = 4;
   const coveragePercent = (detectedCount / totalComponents) * 100;
 
@@ -394,7 +446,7 @@ export function parseHardware(sourceText = "") {
     confidence,
     overallConfidence,
     signals,
-    unknownCount: [cpu, gpu, ram, storage].filter((item) => item.name === "Unknown Hardware").length
+    unknownCount: totalComponents - detectedCount
   };
 }
 
@@ -403,10 +455,10 @@ export function compareHardware(left, right) {
   const rightParsed = typeof right === "string" ? parseHardware(right) : right;
 
   const categories = [
-    ["CPU", leftParsed.cpu.score, rightParsed.cpu.score],
-    ["GPU", leftParsed.gpu.score, rightParsed.gpu.score],
-    ["RAM", leftParsed.ram.score + Math.min(20, (leftParsed.ram.capacityGb || 0) * 1.2), rightParsed.ram.score + Math.min(20, (rightParsed.ram.capacityGb || 0) * 1.2)],
-    ["Storage", leftParsed.storage.score, rightParsed.storage.score]
+    ["CPU", leftParsed.cpu.score || 0, rightParsed.cpu.score || 0],
+    ["GPU", leftParsed.gpu.score || 0, rightParsed.gpu.score || 0],
+    ["RAM", (leftParsed.ram.score || 0) + Math.min(20, (leftParsed.ram.capacityGb || 0) * 1.2), (rightParsed.ram.score || 0) + Math.min(20, (rightParsed.ram.capacityGb || 0) * 1.2)],
+    ["Storage", leftParsed.storage.score || 0, rightParsed.storage.score || 0]
   ].map(([label, leftScore, rightScore]) => {
     const delta = leftScore - rightScore;
     return {
