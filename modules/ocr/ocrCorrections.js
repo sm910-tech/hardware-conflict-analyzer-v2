@@ -3,123 +3,138 @@ import { GPU_DATABASE } from "../../database/gpu/gpus.js";
 import { RAM_DATABASE } from "../../database/ram/ram.js";
 import { STORAGE_DATABASE } from "../../database/storage/storage.js";
 
-const GENERAL_OCR_FIXES = [
+// 1. Unified Character-Level Replacements (Run first)
+const CHARACTER_CLEANUPS = [
   [/[|]/g, "l"],
   [/ı/g, "i"],
   [/–|—|_/g, "-"],
   [/®|©|™/g, ""],
-  [/\bintcl\b/gi, "intel"],
-  [/\bintei\b/gi, "intel"],
-  [/\bnvidla\b/gi, "nvidia"],
-  [/\bnvldia\b/gi, "nvidia"],
-  [/\bgeforcc\b/gi, "geforce"],
-  [/\bgeforoe\b/gi, "geforce"],
-  [/\bcorc\b/gi, "core"],
-  [/\bgrapliics\b/gi, "graphics"],
-  [/\bgraphlcs\b/gi, "graphics"],
-  [/\bgraphies\b/gi, "graphics"],
-  [/\bgraphlc\b/gi, "graphic"],
-  [/\bradean\b/gi, "radeon"],
-  [/\bryzcn\b/gi, "ryzen"],
-  [/\bryzen\s*5\b/gi, "ryzen 5"],
-  [/\bryzen\s*7\b/gi, "ryzen 7"],
-  [/\bryzen\s*9\b/gi, "ryzen 9"],
-  [/\brt\s*x\b/gi, "rtx"],
-  [/\bgt\s*x\b/gi, "gtx"],
-  [/\brx\s*(\d)/gi, "rx $1"],
-  [/\bss0\b/gi, "ssd"],
-  [/\bddr\s*l{2,}\b/gi, "ddr3"],
-  [/\bddr\s*iii\b/gi, "ddr3"],
-  [/\bddr\s*iv\b/gi, "ddr4"],
-  [/\bddr\s*v\b/gi, "ddr5"],
-  [/\bddr\s*3\b/gi, "ddr3"],
-  [/\bddr\s*4\b/gi, "ddr4"],
-  [/\bddr\s*5\b/gi, "ddr5"],
-  [/\blp\s*ddr\s*4\b/gi, "lpddr4"],
-  [/\blp\s*ddr\s*5\b/gi, "lpddr5"],
+];
+
+// 2. Structural Spacing Rules (Saves dozens of standalone loops)
+const STRUCTURED_PASSES = [
+  // Standarize common hardware spacing patterns (e.g., ryzen5 -> ryzen 5, ddr5 -> ddr 5)
+  [/\b(ryzen|rtx|gtx|rx|ddr|lpddr)\s*([0-9iVv]+)\b/gi, "$1 $2"],
+  [/\brt\s+x\b/gi, "rtx"],
+  [/\bgt\s+x\b/gi, "gtx"],
+  [/\bcore\s+i\s+(\d+)\b/gi, "core i$1"],
+  [/\bi\s*(\d+)\s*-\s*/gi, "i$1-"],
+  // Force clean spacing on metric values to prevent downstream parser confusion (e.g., 16GB -> 16 GB)
+  [/\b(\d+)\s*(gb|tb|mb|mhz|w)\b/gi, "$1 $2"],
+  // Roman numeral standardization for RAM generations
+  [/\bddr\s+i{2,}\b/gi, "ddr3"],
+  [/\bddr\s+iii\b/gi, "ddr3"],
+  [/\bddr\s+iv\b/gi, "ddr4"],
+  [/\bddr\s+v\b/gi, "ddr5"],
+  // Standard interface terminology mapping
   [/\bnvme\s*gen\s*(\d)/gi, "nvme gen$1"],
   [/\bpcie\s*gen\s*(\d)/gi, "pcie gen$1"],
-  [/\bm\.?\s*2\b/gi, "m.2"],
-  [/\b52o\b/gi, "520"],
-  [/\b62o\b/gi, "620"],
-  [/\b400o\b/gi, "4000"],
-  [/\bi\s*(\d)\s*-\s*/gi, "i$1-"],
-  [/\bcore\s*i\s*(\d)/gi, "core i$1"],
-  [/\bprocessor\b/gi, "processor"],
-  [/\binstalled\s*ram\b/gi, "installed ram"],
-  [/\bgraphics\s*adapter\b/gi, "graphics"],
-  [/\bgpu\s*0\b/gi, "gpu"]
+  [/\bm\.?\s*2\b/gi, "m.2"]
 ];
+
+// 3. Exact Word Typo Replacements
+const STATIC_WORD_FIXES = {
+  intcl: "intel", intei: "intel", nvidla: "nvidia", nvldia: "nvidia",
+  geforcc: "geforce", geforoe: "geforce", corc: "core", grapliics: "graphics",
+  graphlcs: "graphics", graphies: "graphics", graphlc: "graphic", radean: "radeon",
+  ryzcn: "ryzen", ss0: "ssd", "52o": "520", "62o": "620", "400o": "4000",
+  processor: "processor", "installed ram": "installed ram", "graphics adapter": "graphics", "gpu 0": "gpu"
+};
 
 function normalizeKey(value = "") {
   return String(value).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function buildAliasFixes(database) {
-  const fixes = [];
+// 4. Advanced Compiling Engine: Merges static dictionary and dynamic database records into an O(1) Search Tree
+function compileMasterTokenEngine() {
+  const tokenMap = new Map();
 
-  for (const item of database) {
-    const canonical = normalizeKey(item.name);
-    const aliases = [item.name, ...(item.aliases || [])];
+  // Populate static configurations
+  for (const [typo, correction] of Object.entries(STATIC_WORD_FIXES)) {
+    tokenMap.set(normalizeKey(typo), correction);
+  }
 
-    for (const alias of aliases) {
-      const aliasKey = normalizeKey(alias);
-      if (!aliasKey || aliasKey === canonical) continue;
+  // Inject dynamic cross-references from databases
+  const databases = [CPU_DATABASE, GPU_DATABASE, RAM_DATABASE, STORAGE_DATABASE];
+  
+  for (const database of databases) {
+    if (!database) continue;
+    for (const item of database) {
+      const canonical = normalizeKey(item.name);
+      const aliases = [item.name, ...(item.aliases || [])];
 
-      // Aliases that look like OCR typos of the canonical name.
-      if (/graphlcs|graphies|grapliics|52o|62o|intcl|nvidla|geforcc|ss0|corc/i.test(alias)) {
-        const pattern = new RegExp(aliasKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-        fixes.push([pattern, canonical]);
-        continue;
-      }
+      for (const alias of aliases) {
+        const aliasKey = normalizeKey(alias);
+        if (!aliasKey || aliasKey === canonical) continue;
 
-      // Compact alias variants (e.g. gtx1060, rtx4070) -> spaced form for parser.
-      const compact = aliasKey.replace(/[^a-z0-9]/g, "");
-      const canonicalCompact = canonical.replace(/[^a-z0-9]/g, "");
-      if (compact.length >= 6 && compact !== canonicalCompact && /^[a-z]+\d/.test(compact)) {
-        const spaced = aliasKey
-          .replace(/([a-z]+)(\d)/i, "$1 $2")
-          .replace(/(\d)([a-z])/gi, "$1 $2");
-        fixes.push([new RegExp(compact, "gi"), spaced]);
+        // Catch typical OCR character skips inside string aliases
+        if (/graphlcs|graphies|grapliics|52o|62o|intcl|nvidla|geforcc|ss0|corc/i.test(alias)) {
+          tokenMap.set(aliasKey, canonical);
+          continue;
+        }
+
+        // Catch and process squashed configurations (e.g., "gtx1060" -> "gtx 1060")
+        const compact = aliasKey.replace(/[^a-z0-9]/g, "");
+        const canonicalCompact = canonical.replace(/[^a-z0-9]/g, "");
+        if (compact.length >= 6 && compact !== canonicalCompact && /^[a-z]+\d/.test(compact)) {
+          const spaced = aliasKey
+            .replace(/([a-z]+)(\d)/i, "$1 $2")
+            .replace(/(\d)([a-z])/gi, "$1 $2");
+          tokenMap.set(compact, spaced);
+        }
       }
     }
   }
 
-  return fixes;
+  // Sort keys by character length descending to prevent shorter sub-strings from hijacking longer terms
+  const sortedKeys = Array.from(tokenMap.keys()).sort((a, b) => b.length - a.length);
+  
+  // Wrap in boundary groups safely checking for structural text formatting rules
+  const regexPatterns = sortedKeys.map(key => {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const leadingBoundary = /^[a-z0-9]/i.test(key) ? "\\b" : "";
+    const trailingBoundary = /[a-z0-9]$/i.test(key) ? "\\b" : "";
+    return `${leadingBoundary}${escaped}${trailingBoundary}`;
+  });
+
+  const masterRegex = new RegExp(regexPatterns.join("|"), "gi");
+
+  return { masterRegex, tokenMap };
 }
 
-const DATABASE_ALIAS_FIXES = [
-  ...buildAliasFixes(CPU_DATABASE),
-  ...buildAliasFixes(GPU_DATABASE),
-  ...buildAliasFixes(RAM_DATABASE),
-  ...buildAliasFixes(STORAGE_DATABASE)
-];
+// Compile once globally at runtime initialization
+const { masterRegex: MASTER_TOKEN_REGEX, tokenMap: TARGET_LOOKUP_MAP } = compileMasterTokenEngine();
 
+// Cleans up numeric 'O' glitches safely without infinite loops
 function fixNumericLetterO(text) {
-  let fixed = text;
-  let previous = "";
-
-  while (fixed !== previous) {
-    previous = fixed;
-    fixed = fixed.replace(/(?<=\d)[oO](?=\d|[uUxXtT]|$)/g, "0");
-  }
-
-  return fixed;
+  // Native global (/g) handles all matches in one loop phase across the string context
+  return text.replace(/(?<=\d)[oO](?=\d|[uUxXtT]|$)/g, "0");
 }
 
 export function applyOcrCorrections(text = "") {
+  if (!text) return "";
   let corrected = String(text);
 
-  for (const [pattern, replacement] of GENERAL_OCR_FIXES) {
-    corrected = corrected.replace(pattern, replacement);
+  // Phase 1: Pure Character Cleanup
+  for (let i = 0; i < CHARACTER_CLEANUPS.length; i++) {
+    corrected = corrected.replace(CHARACTER_CLEANUPS[i][0], CHARACTER_CLEANUPS[i][1]);
   }
 
+  // Phase 2: Structural Hardware Syntax Spacing Passes
+  for (let i = 0; i < STRUCTURED_PASSES.length; i++) {
+    corrected = corrected.replace(STRUCTURED_PASSES[i][0], STRUCTURED_PASSES[i][1]);
+  }
+
+  // Phase 3: Fast Numerical OCR Pass
   corrected = fixNumericLetterO(corrected);
 
-  for (const [pattern, replacement] of DATABASE_ALIAS_FIXES) {
-    corrected = corrected.replace(pattern, replacement);
-  }
+  // Phase 4: High Performance Unified Token Matching Engine (Single Native Pass)
+  corrected = corrected.replace(MASTER_TOKEN_REGEX, (matched) => {
+    const key = matched.toLowerCase().replace(/\s+/g, " ").trim();
+    return TARGET_LOOKUP_MAP.get(key) || matched;
+  });
 
+  // Phase 5: Clean Whitespace Geometry
   return corrected
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
