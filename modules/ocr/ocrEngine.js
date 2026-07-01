@@ -2,6 +2,7 @@ import { applyOcrCorrections } from "./ocrCorrections.js";
 
 const OCR_CHAR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-@.()%+/:_[] \u00B0";
 const PREPROCESS_MAX_SIZE = 2500;
+const PREPROCESS_MIN_SIZE = 1500; // Target size to upscale small, blurry text
 
 function extractLinesAndWords(data) {
   const lines = [];
@@ -79,8 +80,16 @@ async function preprocessImageForOcr(file) {
     let drawWidth = width;
     let drawHeight = height;
 
+    // --- Smart Scaling ---
+    // Downscale if too massive to save memory
     if (width > PREPROCESS_MAX_SIZE || height > PREPROCESS_MAX_SIZE) {
       const scale = Math.min(PREPROCESS_MAX_SIZE / width, PREPROCESS_MAX_SIZE / height);
+      drawWidth = Math.round(width * scale);
+      drawHeight = Math.round(height * scale);
+    } 
+    // Upscale if the image is too small (helps Tesseract read small UI fonts)
+    else if (width < PREPROCESS_MIN_SIZE && height < PREPROCESS_MIN_SIZE) {
+      const scale = Math.max(PREPROCESS_MIN_SIZE / width, PREPROCESS_MIN_SIZE / height);
       drawWidth = Math.round(width * scale);
       drawHeight = Math.round(height * scale);
     }
@@ -91,12 +100,13 @@ async function preprocessImageForOcr(file) {
 
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) {
-      if (source.close) {
-        source.close();
-      }
+      if (source.close) source.close();
       return file;
     }
 
+    // Use high-quality image smoothing when resizing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(source, 0, 0, drawWidth, drawHeight);
 
     if (source.close) {
@@ -105,20 +115,65 @@ async function preprocessImageForOcr(file) {
 
     const imageData = ctx.getImageData(0, 0, drawWidth, drawHeight);
     const pixels = imageData.data;
-    const contrast = 1.35;
-    const threshold = 168;
 
+    // --- Otsu's Adaptive Thresholding Implementation ---
+    const histogram = new Array(256).fill(0);
+    const grayscaleValues = new Uint8Array(pixels.length / 4);
+
+    // 1. Convert to grayscale and build histogram
+    let grayIdx = 0;
     for (let index = 0; index < pixels.length; index += 4) {
-      const gray = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
-      const adjusted = Math.max(0, Math.min(255, (gray - 128) * contrast + 128));
-      const value = adjusted >= threshold ? 255 : adjusted <= 72 ? 0 : adjusted;
-      pixels[index] = value;
-      pixels[index + 1] = value;
-      pixels[index + 2] = value;
+      const gray = Math.round(pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114);
+      grayscaleValues[grayIdx++] = gray;
+      histogram[gray]++;
+    }
+
+    // 2. Calculate the optimal Otsu threshold point
+    const totalPixels = grayscaleValues.length;
+    let sum = 0;
+    for (let i = 0; i < 256; i++) sum += i * histogram[i];
+
+    let sumB = 0;
+    let wB = 0;
+    let wF = 0;
+    let varMax = 0;
+    let adaptiveThreshold = 128; // Sensible default fallback
+
+    for (let t = 0; t < 256; t++) {
+      wB += histogram[t];
+      if (wB === 0) continue;
+      wF = totalPixels - wB;
+      if (wF === 0) break;
+
+      sumB += t * histogram[t];
+      const mB = sumB / wB;
+      const mF = (sum - sumB) / wF;
+
+      const varBetween = wB * wF * (mB - mF) * (mB - mF);
+      if (varBetween > varMax) {
+        varMax = varBetween;
+        adaptiveThreshold = t;
+      }
+    }
+
+    // 3. Apply Contrast + Adaptive Threshold Binary Filter
+    const contrast = 1.4; 
+    grayIdx = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const gray = grayscaleValues[grayIdx++];
+      
+      // Apply contrast stretch around the dynamic threshold midpoint
+      const adjusted = Math.max(0, Math.min(255, (gray - adaptiveThreshold) * contrast + adaptiveThreshold));
+      
+      // Strict binarization based on our calculated optimal threshold
+      const finalValue = adjusted >= adaptiveThreshold ? 255 : 0;
+      
+      pixels[index] = finalValue;     // R
+      pixels[index + 1] = finalValue; // G
+      pixels[index + 2] = finalValue; // B
     }
 
     ctx.putImageData(imageData, 0, 0);
-
     const outputType = file.type || "image/png";
 
     return await new Promise((resolve) => {
@@ -134,7 +189,7 @@ async function preprocessImageForOcr(file) {
       }, outputType);
     });
   } catch (error) {
-    console.warn("OCR preprocessing failed:", error);
+    console.warn("OCR preprocessing failed, falling back to raw file:", error);
     return file;
   }
 }
