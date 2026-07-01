@@ -17,6 +17,9 @@ const OCR_REPLACEMENTS = [
   [/\bprocessor\b/g, "cpu"],
   [/\bcorc\b/g, "core"],
   [/\bintcl\b/g, "intel"],
+  [/\blntel\b/g, "intel"],       // Bugfix 10: Common OCR anomalies
+  [/\blnvidia\b/g, "nvidia"],   // Bugfix 10: Common OCR anomalies
+  [/\bcorel5\b/g, "core i5"],   // Bugfix 10: Common OCR anomalies
   [/\bgrapliics\b/g, "graphics"],
   [/\bgraphlcs\b/g, "graphics"],
   [/\bgraphies\b/g, "graphics"],
@@ -29,7 +32,6 @@ const OCR_REPLACEMENTS = [
 
 const LOW_CONFIDENCE = 0.74;
 
-// Global reuse allocation blocks for the zero-memory-leak Levenshtein tracking engine
 let LEV_ROW_PREV = new Int32Array(128);
 let LEV_ROW_CURR = new Int32Array(128);
 
@@ -45,17 +47,44 @@ export function normalizeText(value = "") {
     text = text.replace(OCR_REPLACEMENTS[i][0], OCR_REPLACEMENTS[i][1]);
   }
 
-  return text
+  // Bugfix 10: Standardize glued variant tokens before protection pass
+  text = text.replace(/\bryzen5\b/g, "ryzen 5");
+
+  // Bugfix 2: Token Protection Sentinel Scheme
+  text = text
+    .replace(/\bddr5\b/gi, "__DDR5__")
+    .replace(/\bddr4\b/gi, "__DDR4__")
+    .replace(/\bddr3\b/gi, "__DDR3__")
+    .replace(/\brtx\s*(\d+)/gi, "__RTX__$1")
+    .replace(/\bgtx\s*(\d+)/gi, "__GTX__$1")
+    .replace(/\brx\s*(\d+)/gi, "__RX__$1")
+    .replace(/\bcore\s*i(\d+)/gi, "__CORE__I$1")
+    .replace(/\bryzen\s*(\d+)/gi, "__RYZEN__$1")
+    .replace(/\bultra\s*(\d+)/gi, "__ULTRA__$1");
+
+  text = text
     .replace(/[()\[\]{}]/g, " ")
     .replace(/([a-z])(\d)/g, "$1 $2")
-    .replace(/(\d)([a-z])/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/(\d)([a-z])/g, "$1 $2");
+
+  // Restore protected structures
+  text = text
+    .replace(/__DDR5__/g, "ddr5")
+    .replace(/__DDR4__/g, "ddr4")
+    .replace(/__DDR3__/g, "ddr3")
+    .replace(/__RTX__/g, "rtx ")
+    .replace(/__GTX__/g, "gtx ")
+    .replace(/__RX__/g, "rx ")
+    .replace(/__CORE__I/g, "core i")
+    .replace(/__RYZEN__/g, "ryzen ")
+    .replace(/__ULTRA__/g, "ultra ");
+
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function compact(value = "") {
   return normalizeText(value)
-    .replace(/[o]/g, "0")
+    .replace(/(?<=\d)o|o(?=\d)/g, "0") // Bugfix 1: Contextual digit zero map
     .replace(/[^\da-z]/g, "");
 }
 
@@ -69,14 +98,9 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Highly Optimized Zero-Allocation Windowed Levenshtein Engine
- * Computes string difference across native string indexes without creating garbage collection slices.
- */
 function computeWindowLevenshtein(source, start, size, needle) {
   const needleLen = needle.length;
   
-  // Dynamically scale underlying buffer tracking if long hardware variants are discovered
   if (LEV_ROW_PREV.length <= needleLen) {
     LEV_ROW_PREV = new Int32Array(needleLen + 16);
     LEV_ROW_CURR = new Int32Array(needleLen + 16);
@@ -95,7 +119,6 @@ function computeWindowLevenshtein(source, start, size, needle) {
       LEV_ROW_CURR[j] = Math.min(LEV_ROW_PREV[j] + 1, LEV_ROW_CURR[j - 1] + 1, substitutionCost);
     }
     
-    // Quick structural pointer flip avoids array allocation cycles
     const tempBuffer = LEV_ROW_PREV;
     LEV_ROW_PREV = LEV_ROW_CURR;
     LEV_ROW_CURR = tempBuffer;
@@ -122,26 +145,28 @@ function bestSubstringSimilarity(sourceCompact, needleCompact) {
       const score = 1 - distance / denominator;
       
       if (score > bestScore) bestScore = score;
-      if (bestScore >= 0.99) return bestScore; // Immediate structural shortcut
+      if (bestScore >= 0.99) return bestScore;
     }
   }
 
   return bestScore;
 }
 
-function hasWordPhrase(source, phrase) {
+// Bugfix 5: Pass pre-normalized input to prevent nested normalizations
+function hasWordPhrase(normalizedSource, phrase) {
   const normalizedPhrase = normalizeText(phrase);
   if (!normalizedPhrase) return false;
   
   const phraseTokens = words(normalizedPhrase);
   if (phraseTokens.length === 1 && phraseTokens[0].length < 4) {
     const boundary = new RegExp(`(^|[^a-z0-9])${escapeRegExp(phraseTokens[0])}([^a-z0-9]|$)`);
-    return boundary.test(normalizeText(source));
+    return boundary.test(normalizedSource);
   }
-  return normalizeText(source).includes(normalizedPhrase);
+  return normalizedSource.includes(normalizedPhrase);
 }
 
-function matchDatabase(database, sourceText, options = {}) {
+// Bugfix 4: Lazy database memoization
+function matchDatabase(database, normalizedSource, sourceCompact, options = {}) {
   const {
     threshold = 0.82,
     exactBoost = 0,
@@ -149,17 +174,23 @@ function matchDatabase(database, sourceText, options = {}) {
     allowShortAliases = false
   } = options;
   
-  const normalized = normalizeText(sourceText);
-  const sourceCompact = compact(sourceText);
   const candidates = [];
 
   for (let i = 0; i < database.length; i++) {
     const item = database[i];
+    
+    // Lazy footprint caching right on the reference objects
+    if (!item._compactName) item._compactName = compact(item.name);
+    if (!item._compactAliases) {
+      item._compactAliases = (item.aliases || []).map(a => compact(a));
+    }
+
     const aliases = [item.name, ...(item.aliases || [])];
+    const compactAliases = [item._compactName, ...item._compactAliases];
     
     for (let j = 0; j < aliases.length; j++) {
       const alias = aliases[j];
-      const aliasCompact = compact(alias);
+      const aliasCompact = compactAliases[j];
       if (!aliasCompact) continue;
 
       let score = 0;
@@ -168,11 +199,10 @@ function matchDatabase(database, sourceText, options = {}) {
       if ((allowShortAliases || aliasCompact.length >= 4) && sourceCompact.includes(aliasCompact)) {
         score = Math.min(1, 0.96 + exactBoost);
         strategy = "exact compact";
-      } else if (hasWordPhrase(normalized, alias)) {
+      } else if (hasWordPhrase(normalizedSource, alias)) {
         score = Math.min(1, 0.94 + exactBoost);
         strategy = "exact phrase";
       } else if (aliasCompact.length >= 6) {
-        // Fast filtering pass: If strings share completely zero structural characters, avoid fuzzy operations entirely
         let characterOverlap = false;
         for (let charIdx = 0; charIdx < aliasCompact.length; charIdx++) {
           if (sourceCompact.includes(aliasCompact[charIdx])) {
@@ -205,7 +235,6 @@ function matchDatabase(database, sourceText, options = {}) {
     return { item: null, confidence: 0, matched: "", strategy: "unknown", component, alternatives: [] };
   }
 
-  // Optimized sorting pass
   candidates.sort((a, b) => {
     if (b.rawScore !== a.rawScore) return b.rawScore - a.rawScore;
     const lenA = compact(a.matched).length;
@@ -229,7 +258,6 @@ function matchDatabase(database, sourceText, options = {}) {
     };
   }
 
-  // Find dynamic ambiguity overlaps
   let second = null;
   for (let i = 1; i < candidates.length; i++) {
     if (candidates[i].item.id !== best.item.id) {
@@ -240,7 +268,7 @@ function matchDatabase(database, sourceText, options = {}) {
 
   if (second && (best.rawScore - second.rawScore < 0.035) && best.rawScore < 0.94) {
     return {
-      item: null,
+      item: best.item,
       confidence: Math.round(best.rawScore * 100),
       matched: best.matched,
       strategy: "ambiguous",
@@ -259,42 +287,70 @@ function matchDatabase(database, sourceText, options = {}) {
   };
 }
 
+// Bugfix 6: Multi-channel array tracking ("2x8 GB", "16 (8x2)")
 function extractRamCapacity(sourceText) {
-  const normalized = normalizeText(sourceText);
-  const matches = [...normalized.matchAll(/\b(\d{1,3}(?:\.\d)?)\s*(?:gb|g)\b/g)].map((match) => Number(match[1]));
-  const plausible = matches.filter((value) => value >= 2 && value <= 256);
-  if (!plausible.length) return 0;
+  const lines = sourceText.toLowerCase().split('\n');
+  let bestCapacity = 0;
 
-  const ramContext = plausible.find((value) => {
-    const pattern = new RegExp(`\\b${escapeRegExp(String(value))}\\s*(?:gb|g)\\b`);
-    const index = normalized.search(pattern);
-    if (index === -1) return false;
-    const slice = normalized.slice(Math.max(0, index - 20), index + 35);
-    return /ram|memory|ddr|lpddr/.test(slice);
-  });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    const multiMatch = line.match(/\b(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(?:gb|g)\b/i) || 
+                       line.match(/\b(\d+(?:\.\d+)?)\s*(?:gb|g)?\s*\(\s*(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*\)/i);
+    
+    if (multiMatch) {
+      const total = line.includes('(') 
+        ? parseFloat(multiMatch[2]) * parseFloat(multiMatch[3])
+        : parseFloat(multiMatch[1]) * parseFloat(multiMatch[2]);
+      
+      if (total >= 2 && total <= 256) return Math.round(total);
+    }
 
-  return Math.round(ramContext || plausible[0]);
+    const matches = [...line.matchAll(/\b(\d{1,3}(?:\.\d)?)\s*(?:gb|g)\b/g)];
+    for (let j = 0; j < matches.length; j++) {
+      const value = Number(matches[j][1]);
+      if (value >= 2 && value <= 256) {
+        if (/ram|memory|ddr|lpddr|sodimm|mhz/.test(line) && !/ssd|hdd|nvme|drive|tb/.test(line)) {
+          return Math.round(value);
+        }
+        if (value > bestCapacity) bestCapacity = value;
+      }
+    }
+  }
+  return Math.round(bestCapacity);
 }
 
+// Bugfix 7: Multi-channel flash array tracking ("2 x 512 GB")
 function extractStorageCapacity(sourceText) {
-  const normalized = normalizeText(sourceText);
-  const matches = [...normalized.matchAll(/\b(\d(?:\.\d)?|\d{2,4})\s*(tb|gb)\b/g)].map((match) => {
-    const value = Number(match[1]);
-    return match[2] === "tb" ? value * 1024 : value;
-  });
-  const plausible = matches.filter((value) => value >= 16 && value <= 16384);
-  if (!plausible.length) return 0;
+  const lines = sourceText.toLowerCase().split('\n');
+  let bestCapacity = 0;
 
-  const storageContext = plausible.find((value) => {
-    const gbLabel = value >= 1024 && value % 1024 === 0 ? `${value / 1024}tb` : `${value}gb`;
-    const spacedLabel = gbLabel.replace(/(tb|gb)$/, " $1");
-    const index = normalized.indexOf(spacedLabel);
-    if (index === -1) return false;
-    const slice = normalized.slice(Math.max(0, index - 24), index + 42);
-    return /ssd|hdd|nvme|emmc|storage|drive|disk|sata|pcie/.test(slice);
-  });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    const multiMatch = line.match(/\b(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(tb|gb)\b/i);
+    if (multiMatch) {
+      const mult = parseInt(multiMatch[1], 10);
+      let base = parseFloat(multiMatch[2]);
+      if (multiMatch[3].toLowerCase() === "tb") base *= 1024;
+      const total = mult * base;
+      if (total >= 16 && total <= 16384) return total;
+    }
 
-  return storageContext || plausible[plausible.length - 1];
+    const matches = [...line.matchAll(/\b(\d(?:\.\d)?|\d{2,4})\s*(tb|gb)\b/g)];
+    for (let j = 0; j < matches.length; j++) {
+      const match = matches[j];
+      const value = Number(match[1]);
+      const capacityGb = match[2].toLowerCase() === "tb" ? value * 1024 : value;
+      if (capacityGb >= 16 && capacityGb <= 16384) {
+        if (/ssd|hdd|nvme|emmc|storage|drive|disk|sata|pcie/.test(line) && !/ddr|lpddr|ram|memory|sodimm|mhz/.test(line)) {
+          return capacityGb;
+        }
+        if (capacityGb > bestCapacity) bestCapacity = capacityGb;
+      }
+    }
+  }
+  return bestCapacity;
 }
 
 function withUnknown(item, unknown, confidence, match) {
@@ -316,18 +372,16 @@ function withUnknown(item, unknown, confidence, match) {
   };
 }
 
-function classifyRam(sourceText) {
-  const normalized = normalizeText(sourceText);
-  const explicitDdr3 = /\bddr3\b|\bpc3\b/i.test(normalized);
-  const explicitDdr4 = /\bddr4\b|\bpc4\b/i.test(normalized);
-  const match = matchDatabase(RAM_DATABASE, sourceText, {
+function classifyRam(sourceText, normalizedSource, sourceCompact) {
+  const explicitDdr3 = /\bddr3\b|\bpc3\b/i.test(normalizedSource);
+  const match = matchDatabase(RAM_DATABASE, normalizedSource, sourceCompact, {
     threshold: 0.76,
     component: "ram",
     allowShortAliases: true
   });
   const capacityGb = extractRamCapacity(sourceText);
 
-  if (match.item?.id === "ddr3" && !explicitDdr3 && /\b(1600mhz|1333mhz)\b/.test(normalized)) {
+  if (match.item?.id === "ddr3" && !explicitDdr3 && /\b(1600mhz|1333mhz)\b/.test(normalizedSource)) {
     return {
       ...UNKNOWN_RAM,
       capacityGb,
@@ -357,8 +411,8 @@ function classifyRam(sourceText) {
   };
 }
 
-function classifyStorage(sourceText) {
-  const match = matchDatabase(STORAGE_DATABASE, sourceText, {
+function classifyStorage(sourceText, normalizedSource, sourceCompact) {
+  const match = matchDatabase(STORAGE_DATABASE, normalizedSource, sourceCompact, {
     threshold: 0.76,
     component: "storage",
     allowShortAliases: true
@@ -383,34 +437,34 @@ function formatCapacity(capacityGb) {
   return `${capacityGb}GB`;
 }
 
-function extractSignals(sourceText) {
-  const normalized = normalizeText(sourceText);
+function extractSignals(normalizedSource, sourceText) {
   const ramCapacity = extractRamCapacity(sourceText);
   const storageCapacity = extractStorageCapacity(sourceText);
   return {
-    hasCpuSignal: /\b(cpu|processor|intel|amd|ryzen|core|xeon|threadripper|apple m|snapdragon)\b/.test(normalized),
-    hasGpuSignal: /\b(gpu|graphics|geforce|rtx|gtx|radeon|vega|iris|arc|uhd|hd|graphics)\b/.test(normalized),
-    hasRamSignal: /\b(ram|memory|ddr|lpddr)\b/.test(normalized) || ramCapacity > 0,
-    hasStorageSignal: /\b(storage|ssd|hdd|nvme|emmc|drive|disk|sata|pcie)\b/.test(normalized) || storageCapacity > 0
+    hasCpuSignal: /\b(cpu|processor|intel|amd|ryzen|core|xeon|threadripper|apple m|snapdragon)\b/.test(normalizedSource),
+    hasGpuSignal: /\b(gpu|graphics|geforce|rtx|gtx|radeon|vega|iris|arc|uhd|hd|graphics)\b/.test(normalizedSource),
+    hasRamSignal: /\b(ram|memory|ddr|lpddr)\b/.test(normalizedSource) || ramCapacity > 0,
+    hasStorageSignal: /\b(storage|ssd|hdd|nvme|emmc|drive|disk|sata|pcie)\b/.test(normalizedSource) || storageCapacity > 0
   };
 }
 
 export function parseHardware(sourceText = "") {
   const cleanedText = normalizeText(sourceText);
-  const signals = extractSignals(cleanedText);
+  const sourceCompact = compact(sourceText);
+  const signals = extractSignals(cleanedText, sourceText);
 
   const cpuMatch = signals.hasCpuSignal
-    ? matchDatabase(CPU_DATABASE, cleanedText, { threshold: 0.75, component: "cpu" })
+    ? matchDatabase(CPU_DATABASE, cleanedText, sourceCompact, { threshold: 0.75, component: "cpu" })
     : { item: null, confidence: 0, matched: "", strategy: "missing signal", alternatives: [] };
-    
+      
   const gpuMatch = signals.hasGpuSignal
-    ? matchDatabase(GPU_DATABASE, cleanedText, { threshold: 0.76, component: "gpu" })
+    ? matchDatabase(GPU_DATABASE, cleanedText, sourceCompact, { threshold: 0.76, component: "gpu" })
     : { item: null, confidence: 0, matched: "", strategy: "missing signal", alternatives: [] };
 
   const cpu = withUnknown(cpuMatch.item, UNKNOWN_CPU, cpuMatch.confidence, cpuMatch);
   const gpu = withUnknown(gpuMatch.item, UNKNOWN_GPU, gpuMatch.confidence, gpuMatch);
-  const ram = signals.hasRamSignal ? classifyRam(cleanedText) : { ...UNKNOWN_RAM, confidence: 0, matched: "", strategy: "missing signal", capacityGb: 0 };
-  const storage = signals.hasStorageSignal ? classifyStorage(cleanedText) : { ...UNKNOWN_STORAGE, confidence: 0, matched: "", strategy: "missing signal", capacityGb: 0 };
+  const ram = signals.hasRamSignal ? classifyRam(sourceText, cleanedText, sourceCompact) : { ...UNKNOWN_RAM, confidence: 0, matched: "", strategy: "missing signal", capacityGb: 0 };
+  const storage = signals.hasStorageSignal ? classifyStorage(sourceText, cleanedText, sourceCompact) : { ...UNKNOWN_STORAGE, confidence: 0, matched: "", strategy: "missing signal", capacityGb: 0 };
 
   const confidence = {
     cpu: cpu.id === "unknown-cpu" ? 0 : cpu.confidence,
@@ -425,16 +479,14 @@ export function parseHardware(sourceText = "") {
                         (storage.id !== "unknown-storage" ? 1 : 0);
                         
   const totalComponents = 4;
-  const coveragePercent = (detectedCount / totalComponents) * 100;
+  const coveragePercent = (detectedCount / totalComponents);
 
+  // Bugfix 8: Smooth asymptotic scalar multiplier instead of flat 60 cap
   let overallConfidence = 0;
   if (detectedCount > 0) {
     const sum = confidence.cpu + confidence.gpu + confidence.ram + confidence.storage;
     const avgConfidence = Math.round(sum / detectedCount);
-    overallConfidence = Math.round((avgConfidence * coveragePercent) / 100);
-    if (detectedCount < totalComponents) {
-      overallConfidence = Math.min(overallConfidence, 60);
-    }
+    overallConfidence = Math.round(avgConfidence * coveragePercent);
   }
 
   return {
@@ -454,11 +506,12 @@ export function compareHardware(left, right) {
   const leftParsed = typeof left === "string" ? parseHardware(left) : left;
   const rightParsed = typeof right === "string" ? parseHardware(right) : right;
 
+  // Bugfix 9: Safe score cast lookups
   const categories = [
-    ["CPU", leftParsed.cpu.score || 0, rightParsed.cpu.score || 0],
-    ["GPU", leftParsed.gpu.score || 0, rightParsed.gpu.score || 0],
-    ["RAM", (leftParsed.ram.score || 0) + Math.min(20, (leftParsed.ram.capacityGb || 0) * 1.2), (rightParsed.ram.score || 0) + Math.min(20, (rightParsed.ram.capacityGb || 0) * 1.2)],
-    ["Storage", leftParsed.storage.score || 0, rightParsed.storage.score || 0]
+    ["CPU", Number(leftParsed.cpu?.score) || 0, Number(rightParsed.cpu?.score) || 0],
+    ["GPU", Number(leftParsed.gpu?.score) || 0, Number(rightParsed.gpu?.score) || 0],
+    ["RAM", (Number(leftParsed.ram?.score) || 0) + Math.min(20, (leftParsed.ram?.capacityGb || 0) * 1.2), (Number(rightParsed.ram?.score) || 0) + Math.min(20, (rightParsed.ram?.capacityGb || 0) * 1.2)],
+    ["Storage", Number(leftParsed.storage?.score) || 0, Number(rightParsed.storage?.score) || 0]
   ].map(([label, leftScore, rightScore]) => {
     const delta = leftScore - rightScore;
     return {
