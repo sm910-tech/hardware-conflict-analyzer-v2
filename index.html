@@ -153,21 +153,26 @@
             </div>
 
             <div id="dropZone" class="drop-zone">
-              <input id="fileInput" type="file" accept="image/*" aria-label="Upload Screenshot" />
-              <div id="scanFrame" class="scan-frame">
-                <img id="previewImage" alt="Screenshot preview of system information" loading="lazy" />
-                <div class="scan-beam"></div>
-                <div class="drop-empty">
-                  <i data-lucide="crosshair"></i>
-                  <span>DRAG & DROP SCREENSHOT</span>
-                  <small>Supports PNG, JPG, WEBP</small>
-                  <div class="mobile-upload-triggers">
-                    <span class="mobile-upload-btn"><i data-lucide="camera"></i> Take Screenshot</span>
-                    <span class="mobile-upload-btn"><i data-lucide="image"></i> Choose Image</span>
-                  </div>
-                </div>
-              </div>
+    <input id="fileInput" type="file" accept="image/*" aria-label="Upload Screenshot" />
+
+    <div id="scanFrame" class="scan-frame">
+        <img id="previewImage" alt="Screenshot preview of system information" loading="lazy" />
+        <div class="scan-beam"></div>
+        <div class="drop-empty">
+            <i data-lucide="crosshair"></i>
+            <span>DRAG & DROP SCREENSHOT</span>
+            <small>Supports PNG, JPG, WEBP</small>
+            <div class="mobile-upload-triggers">
+                <span class="mobile-upload-btn"><i data-lucide="camera"></i> Take Screenshot</span>
+                <span class="mobile-upload-btn"><i data-lucide="image"></i> Choose Image</span>
             </div>
+        </div>
+    </div>
+
+    <!-- ADD THIS -->
+    <div id="imageInfo" class="image-info" style="display:none;"></div>
+
+</div>
 
             <div class="button-row">
               <button id="ocrButton" class="button secondary" type="button" disabled>
